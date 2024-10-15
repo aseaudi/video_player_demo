@@ -102,7 +102,9 @@ class _MyHomePageState extends State<MyHomePage> {
       oldPreviousVideoPlayerController?.dispose();
       newNextVideoPlayerController = VideoPlayerController?.networkUrl(
           Uri.parse(srcs[(index + 1) % srcs.length]));
-      newNextVideoPlayerController.initialize().then((_){});
+      newNextVideoPlayerController.initialize().then((_){
+        setState(() {});
+      });
     } else {
       newNextVideoPlayerController = _videoPlayerController;
       newNextVideoPlayerController?.pause();
@@ -112,7 +114,9 @@ class _MyHomePageState extends State<MyHomePage> {
       oldNextVideoPlayerController?.dispose();
       newPreviousVideoPlayerController = VideoPlayerController?.networkUrl(
           Uri.parse(srcs[(index - 1) % srcs.length]));
-      newPreviousVideoPlayerController.initialize().then((_){});
+      newPreviousVideoPlayerController.initialize().then((_){
+        setState(() {});
+      });
     }
     _videoPlayerController = videoController;
     setState(() {});
@@ -136,7 +140,17 @@ class _MyHomePageState extends State<MyHomePage> {
               _nextVideo(index);
             },
             itemBuilder: (context, index) {
-              return VideoPlayer(_videoPlayerController!);
+              return _videoPlayerController!.value.isInitialized
+                  ?
+              VideoPlayer(_videoPlayerController!)
+                  :
+              const Center(
+                  child: SizedBox(
+                      width: 100,
+                      height:100,
+                      child: CircularProgressIndicator()
+                  )
+              );
             }),
       ),
     );
