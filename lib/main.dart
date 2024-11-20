@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:video_player_demo/video_controller_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -31,8 +35,14 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   VideoPlayerController? _videoPlayerController;
+  VideoPlayerController? _newVideoPlayerController;
   VideoPlayerController? _nextVideoPlayerController;
+  VideoPlayerController? _newNextVideoPlayerController;
   VideoPlayerController? _previousVideoPlayerController;
+  VideoPlayerController? _newPreviousVideoPlayerController;
+
+  CachedVideoControllerService cachedSvc = CachedVideoControllerService(DefaultCacheManager());
+
   int lastIndex = 0;
   List<String> srcs = [
     "https://www.treefe.in/video_1725979416530825_0_dKbGnV7wCPCqbWB4.mp4",
@@ -69,15 +79,26 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void initializePlayer()  {
-    _videoPlayerController =
-        VideoPlayerController.networkUrl(Uri.parse(srcs[0]));
+    // cachedSvc.getControllerForVideo(srcs[0]).then((VideoPlayerController cachedVideoController)  {
+    //   _videoPlayerController = cachedVideoController;
+    // });
+    // _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(srcs[0]));
+    _videoPlayerController = getCachedVideoController(srcs[0]);
     _videoPlayerController?.initialize().then((_) {
         setState(() {});
       });
     _videoPlayerController?.play();
-    _nextVideoPlayerController = VideoPlayerController.networkUrl(Uri.parse(srcs[1]));
+    // cachedSvc.getControllerForVideo(srcs[1]).then((VideoPlayerController cachedVideoController)  {
+    //   _videoPlayerController = cachedVideoController;
+    // });
+    // _nextVideoPlayerController = VideoPlayerController.networkUrl(Uri.parse(srcs[1]));
+    _nextVideoPlayerController = getCachedVideoController(srcs[1]);
     _nextVideoPlayerController?.initialize().then((_){});
-    _previousVideoPlayerController = VideoPlayerController.networkUrl(Uri.parse(srcs[srcs.length-1]));
+    // cachedSvc.getControllerForVideo(srcs[srcs.length-1]).then((VideoPlayerController cachedVideoController)  {
+    //   _videoPlayerController = cachedVideoController;
+    // });
+    // _previousVideoPlayerController = VideoPlayerController.networkUrl(Uri.parse(srcs[srcs.length-1]));
+    _previousVideoPlayerController = getCachedVideoController(srcs[srcs.length-1]);
     _previousVideoPlayerController?.initialize().then((_){});
   }
 
@@ -89,40 +110,65 @@ class _MyHomePageState extends State<MyHomePage> {
     super.dispose();
   }
 
+    VideoPlayerController getCachedVideoController(String videoUrl) {
+    CacheManager _cacheManager = DefaultCacheManager();
+     _cacheManager.getFileFromCache(videoUrl).then((fileInfo) {
+
+    if (fileInfo == null || fileInfo.file == null) {
+      print('[VideoControllerService]: No video in cache');
+      print('[VideoControllerService]: Saving video to cache');
+      unawaited(_cacheManager.downloadFile(videoUrl));
+      return VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+    } else {
+      print('[VideoControllerService]: Loading video from cache');
+      return VideoPlayerController.file(fileInfo.file);
+    }
+     });
+     return VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+  }
+
   void _nextVideo(index) {
-    VideoPlayerController? newPreviousVideoPlayerController;
-    VideoPlayerController? videoController;
-    VideoPlayerController? newNextVideoPlayerController;
+    // VideoPlayerController? newPreviousVideoPlayerController;
+    // VideoPlayerController? videoController;
+    // VideoPlayerController? newNextVideoPlayerController;
     if (index > lastIndex) {
-      newPreviousVideoPlayerController = _videoPlayerController;
-      newPreviousVideoPlayerController?.pause();
-      videoController = _nextVideoPlayerController;
+      _newPreviousVideoPlayerController = _videoPlayerController;
+      _newPreviousVideoPlayerController?.pause();
+      _newVideoPlayerController = _nextVideoPlayerController;
       VideoPlayerController? oldPreviousVideoPlayerController =
           _previousVideoPlayerController;
       oldPreviousVideoPlayerController?.dispose();
-      newNextVideoPlayerController = VideoPlayerController?.networkUrl(
-          Uri.parse(srcs[(index + 1) % srcs.length]));
-      newNextVideoPlayerController.initialize().then((_){
+      // cachedSvc.getControllerForVideo(srcs[(index + 1) % srcs.length]).then((VideoPlayerController cachedVideoController)  {
+      //   _newNextVideoPlayerController = cachedVideoController;
+      // });
+      // _newNextVideoPlayerController = VideoPlayerController?.networkUrl(
+          // Uri.parse(srcs[(index + 1) % srcs.length]));
+      _newNextVideoPlayerController = getCachedVideoController(srcs[(index + 1) % srcs.length]);
+      _newNextVideoPlayerController?.initialize().then((_){
         setState(() {});
       });
     } else {
-      newNextVideoPlayerController = _videoPlayerController;
-      newNextVideoPlayerController?.pause();
-      videoController = _previousVideoPlayerController;
+      _newNextVideoPlayerController = _videoPlayerController;
+      _newNextVideoPlayerController?.pause();
+      _newVideoPlayerController = _previousVideoPlayerController;
       VideoPlayerController? oldNextVideoPlayerController =
           _nextVideoPlayerController;
       oldNextVideoPlayerController?.dispose();
-      newPreviousVideoPlayerController = VideoPlayerController?.networkUrl(
-          Uri.parse(srcs[(index - 1) % srcs.length]));
-      newPreviousVideoPlayerController.initialize().then((_){
+    //   cachedSvc.getControllerForVideo(srcs[(index - 1) % srcs.length]).then((VideoPlayerController cachedVideoController)  {
+    //   _newPreviousVideoPlayerController = cachedVideoController;
+    // });
+      // _newPreviousVideoPlayerController = VideoPlayerController?.networkUrl(
+          // Uri.parse(srcs[(index - 1) % srcs.length]));
+                _newPreviousVideoPlayerController = getCachedVideoController(srcs[(index - 1) % srcs.length]);
+      _newPreviousVideoPlayerController?.initialize().then((_){
         setState(() {});
       });
     }
-    _videoPlayerController = videoController;
+    _videoPlayerController = _newVideoPlayerController;
     setState(() {});
-    videoController?.play();
-    _previousVideoPlayerController = newPreviousVideoPlayerController;
-    _nextVideoPlayerController = newNextVideoPlayerController;
+    _newVideoPlayerController?.play();
+    _previousVideoPlayerController = _newPreviousVideoPlayerController;
+    _nextVideoPlayerController = _newNextVideoPlayerController;
     lastIndex = index;
   }
 
@@ -156,3 +202,4 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
