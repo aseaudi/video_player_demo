@@ -76,6 +76,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _videoPlayerController?.initialize().then((_) {
         setState(() {});
       });
+    _videoPlayerController?.setLooping(true);
     _videoPlayerController?.play();
     _nextVideoPlayerController = await getCachedVideoController(srcs[1]);
     _nextVideoPlayerController?.initialize().then((_){});
@@ -131,7 +132,8 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     _videoPlayerController = _newVideoPlayerController;
     setState(() {});
-    _newVideoPlayerController?.play();
+    _videoPlayerController?.setLooping(true);
+    _videoPlayerController?.play();
     _previousVideoPlayerController = _newPreviousVideoPlayerController;
     _nextVideoPlayerController = _newNextVideoPlayerController;
     lastIndex = index;
