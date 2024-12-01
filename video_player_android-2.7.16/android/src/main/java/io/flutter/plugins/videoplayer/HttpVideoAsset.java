@@ -46,7 +46,6 @@ final class HttpVideoAsset extends VideoAsset {
 
   @NonNull private final StreamingFormat streamingFormat;
   @NonNull private final Map<String, String> httpHeaders;
-  private static CacheDataSource.EventListener eventListener;
   private static DatabaseProvider databaseProvider;
   private static Cache downloadCache;
   private static File downloadDirectory;
@@ -109,23 +108,6 @@ final class HttpVideoAsset extends VideoAsset {
     return new DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory);
   }
 
-  public static CacheDataSource.EventListener getEventListener() {
-    if (eventListener != null) return eventListener;
-    eventListener = new CacheDataSource.EventListener() {
-      @Override
-      public void onCachedBytesRead(long cacheSizeBytes, long cachedBytesRead) {
-        Log.i("XXXX",
-            "onCachedBytesRead. cacheSizeBytes: $cacheSizeBytes, cachedBytesRead: $cachedBytesRead");
-      }
-
-      @Override
-      public void onCacheIgnored(int reason) {
-        Log.i("XXXX", "onCacheIgnored. reason:$reason");
-      }
-    };
-    return eventListener;
-  }
-
   private static synchronized Cache getDownloadCache(Context context) {
     if (downloadCache == null) {
       File downloadContentDirectory =
@@ -165,7 +147,6 @@ final class HttpVideoAsset extends VideoAsset {
                 .setCache(cache)
                 .setFragmentSize(CacheDataSink.DEFAULT_FRAGMENT_SIZE)
         )
-        .setEventListener(getEventListener())
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
   }
 

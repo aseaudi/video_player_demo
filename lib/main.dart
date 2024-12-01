@@ -74,6 +74,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _videoPlayerController?.initialize().then((_) {
         setState(() {});
       });
+    _videoPlayerController?.setLooping(true);
     _videoPlayerController?.play();
     _nextVideoPlayerController = VideoPlayerController.networkUrl(Uri.parse(srcs[1]));
     _nextVideoPlayerController?.initialize().then((_){});
@@ -119,6 +120,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     }
     _videoPlayerController = videoController;
+    _videoPlayerController?.setLooping(true);
     setState(() {});
     videoController?.play();
     _previousVideoPlayerController = newPreviousVideoPlayerController;
