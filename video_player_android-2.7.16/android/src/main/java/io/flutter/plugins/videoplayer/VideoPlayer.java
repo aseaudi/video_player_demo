@@ -17,6 +17,8 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultLoadControl;
+
 import io.flutter.view.TextureRegistry;
 
 final class VideoPlayer implements TextureRegistry.SurfaceProducer.Callback {
@@ -47,9 +49,15 @@ final class VideoPlayer implements TextureRegistry.SurfaceProducer.Callback {
       @NonNull VideoPlayerOptions options) {
     return new VideoPlayer(
         () -> {
+          DefaultLoadControl loadControl = 
+            new DefaultLoadControl
+              .Builder()
+              .setBufferDurationsMs(1000, 3000, 1000, 1000)
+              .build();
           ExoPlayer.Builder builder =
               new ExoPlayer.Builder(context)
-                  .setMediaSourceFactory(asset.getMediaSourceFactory(context));
+                  .setMediaSourceFactory(asset.getMediaSourceFactory(context))
+                  .setLoadControl(loadControl);
           return builder.build();
         },
         events,
