@@ -18,6 +18,8 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.DefaultLoadControl;
+// import androidx.media3.exoplayer.source.preload.DefaultPreloadManager;
+// import androidx.media3.exoplayer.source.preload.DefaultPreloadManager.Builder;
 
 import io.flutter.view.TextureRegistry;
 
@@ -49,16 +51,38 @@ final class VideoPlayer implements TextureRegistry.SurfaceProducer.Callback {
       @NonNull VideoPlayerOptions options) {
     return new VideoPlayer(
         () -> {
-          DefaultLoadControl loadControl = 
-            new DefaultLoadControl
-              .Builder()
-              .setBufferDurationsMs(1000, 3000, 1000, 1000)
-              .build();
+
+          DefaultLoadControl loadControl =
+          new DefaultLoadControl
+            .Builder()
+            .setBufferDurationsMs(1000, 5000, 1000, 1000)
+            // .setPrioritizeTimeOverSizeThresholds(true)
+            // .setTargetBufferBytes(500000)
+            .build();
+          MyBandwidthMeter bandwidthMeter = new MyBandwidthMeter();
           ExoPlayer.Builder builder =
-              new ExoPlayer.Builder(context)
-                  .setMediaSourceFactory(asset.getMediaSourceFactory(context))
-                  .setLoadControl(loadControl);
+             new ExoPlayer.Builder(context)
+                  .setBandwidthMeter(bandwidthMeter)
+                 .setMediaSourceFactory(asset.getMediaSourceFactory(context))
+
+                 .setLoadControl(loadControl);
           return builder.build();
+
+
+          // DefaultLoadControl loadControl2 = new DefaultLoadControl.Builder()
+          //     .setBufferDurationsMs(1000, 3000, 1000, 1000)
+          //     .setPrioritizeTimeOverSizeThresholds(true)
+          //     .build();
+          // DefaultPreloadManager.Status preloadControl2 = new DefaultPreloadManager.Status(2, 500L);
+          // DefaultPreloadManager preloadManagerBuilder2 =
+          //         new DefaultPreloadManager.Builder(context.getApplicationContext(), preloadControl2)
+          //               .setLoadControl(loadControl2);
+          // ExoPlayer player2 = preloadManagerBuilder2.buildExoPlayer();
+          // DefaultPreloadManager preloadManager = preloadManagerBuilder2.build();
+          // preloadManager.invalidate();
+          // return player2;
+
+
         },
         events,
         surfaceProducer,
@@ -176,4 +200,70 @@ final class VideoPlayer implements TextureRegistry.SurfaceProducer.Callback {
     // https://github.com/flutter/flutter/issues/156434.
     surfaceProducer.setCallback(null);
   }
+
+//  public void setupPreloadManager() {
+//
+//    DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+//            .setBufferDurationsMs(1000, 5000, 1000, 1000)
+//            .setPrioritizeTimeOverSizeThresholds(true)
+//            .build();
+//    DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this);
+//    // DefaultTrackSelector trackSelector = new DefaultTrackSelector(this);
+//    // DefaultBandwidthMeter bandwidthMeter = DefaultBandwidthMeter.getSingletonInstance(this);
+//    trackSelector.init(new DefaultTrackSelector.ParametersBuilder(this).build(), DefaultBandwidthMeter.getSingletonInstance(this));
+//    preloadManager = new DefaultPreloadManager(
+//            new DefaultPreloadControl(),
+//            new DefaultMediaSourceFactory(this),
+//            // trackSelector,
+//            // DefaultBandwidthMeter.getSingletonInstance(this),
+//            new RendererCapabilitiesList.Factory(renderersFactory),
+//            loadControl.getAllocator(),
+//            playbackThread.getLooper());
+//    initPlayer(
+//            playbackThread.getLooper(),
+//            loadControl,
+//            renderersFactory,
+//            bandwidthMeter);
+//    preloadManager.invalidate();
+//  }
+//
+//  private void initPlayer(
+//          Looper playbackLooper,
+//          LoadControl loadControl,
+//          RenderersFactory renderersFactory,
+//          BandwidthMeter bandwidthMeter) {
+//      player = new ExoPlayer.Builder(this)
+//              .setPlaybackLooper(playbackLooper)
+//              .setLoadControl(loadControl)
+//              .setRenderersFactory(renderersFactory)
+//              .setBandwidthMeter(bandwidthMeter)
+//              .build();
+//      player.setPlayWhenReady(true);
+//      player_exo.setPlayer(player);
+//      currentMediaIndex = 0;
+//      setupMediaItem();
+//      preloadManager.invalidate();
+//  }
+//
+//  private void setupMediaItem() {
+//    if (currentMediaIndex == 0) {
+//        List<URI> mediaUris = MediaItemDatabase.getMediaUris();
+//        for (int index = 0; index < mediaUris.size(); index++) {
+//            MediaItem mediaItem = MediaItemDatabase.get(index);
+//            preloadManager.add(mediaItem, index);
+//        }
+//    } else {
+//        preloadManager.remove(MediaItemDatabase.get(currentMediaIndex - 1));
+//    }
+//    preloadManager.setCurrentPlayingIndex(currentMediaIndex);
+//    preloadManager.invalidate();
+//    MediaItem mediaItem = MediaItemDatabase.get(currentMediaIndex);
+//    MediaSource mediaSource = preloadManager.getMediaSource(mediaItem);
+//    if (mediaSource != null) {
+//        player.setMediaSource(mediaSource);
+//        player.seekTo(playbackPosition);
+//        player.prepare();
+//    }
+//  }
+
 }

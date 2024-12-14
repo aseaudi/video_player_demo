@@ -50,6 +50,9 @@ final class HttpVideoAsset extends VideoAsset {
   private static Cache downloadCache;
   private static File downloadDirectory;
 
+  private static CacheDataSource.EventListener eventListener;
+
+
   HttpVideoAsset(
       @Nullable String assetUrl,
       @NonNull StreamingFormat streamingFormat,
@@ -103,8 +106,9 @@ final class HttpVideoAsset extends VideoAsset {
       userAgent = httpHeaders.get(HEADER_USER_AGENT);
     }
     unstableUpdateDataSourceFactory(initialFactory, httpHeaders, userAgent);
+    // DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(context, initialFactory);
     DataSource.Factory dataSourceFactory1 = new DefaultDataSource.Factory(context, initialFactory);
-    DataSource.Factory dataSourceFactory = buildReadOnlyCacheDataSource(dataSourceFactory1, getDownloadCache(context));
+    CacheDataSource.Factory dataSourceFactory = buildReadOnlyCacheDataSource(dataSourceFactory1, getDownloadCache(context));
     return new DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory);
   }
 
@@ -147,7 +151,8 @@ final class HttpVideoAsset extends VideoAsset {
                 .setCache(cache)
                 .setFragmentSize(CacheDataSink.DEFAULT_FRAGMENT_SIZE)
         )
-        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        .setEventListener(getEventListener());
   }
 
 
@@ -162,4 +167,22 @@ final class HttpVideoAsset extends VideoAsset {
       factory.setDefaultRequestProperties(httpHeaders);
     }
   }
+
+  public static CacheDataSource.EventListener getEventListener() {
+    if (eventListener != null) return eventListener;
+    eventListener = new CacheDataSource.EventListener() {
+      @Override
+      public void onCachedBytesRead(long cacheSizeBytes, long cachedBytesRead) {
+        // Log.i("XXXX",
+        //     "onCachedBytesRead. cacheSizeBytes: $cacheSizeBytes, cachedBytesRead: $cachedBytesRead");
+      }
+
+      @Override
+      public void onCacheIgnored(int reason) {
+        // Log.i("XXXX", "onCacheIgnored. reason:$reason");
+      }
+    };
+    return eventListener;
+  }
+  
 }
