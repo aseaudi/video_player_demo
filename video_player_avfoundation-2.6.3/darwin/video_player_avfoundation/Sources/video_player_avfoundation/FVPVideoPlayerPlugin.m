@@ -93,6 +93,17 @@
 // frame is successfully provided.
 @property(nonatomic, assign) BOOL waitingForFrame;
 
+@property NSMutableArray *pendingRequests;
+@property NSMutableData *videoData;
+@property NSHTTPURLResponse *responset;
+@property NSURLConnection *connection;
+
+@property NSURLSession *session;
+@property NSURLSessionDataTask *dataTask;
+@property NSUInteger contentLength;
+@property Float64 totalBufferedTime;
+@property NSURL *realURL;
+
 - (instancetype)initWithURL:(NSURL *)url
                frameUpdater:(FVPFrameUpdater *)frameUpdater
                 displayLink:(FVPDisplayLink *)displayLink
@@ -251,7 +262,26 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   if ([headers count] != 0) {
     options = @{@"AVURLAssetHTTPHeaderFieldsKey" : headers};
   }
-  AVURLAsset *urlAsset = [AVURLAsset URLAssetWithURL:url options:options];
+
+  // AVURLAsset *urlAsset = [AVURLAsset URLAssetWithURL:url options:options];
+
+  _realURL = url;
+  NSString *stringURL = url.absoluteString;
+  NSURL *videoURL;
+  if([stringURL rangeOfString:@"https://"].location != NSNotFound) {
+    NSString *strVideoURL = [url.absoluteString stringByReplacingOccurrencesOfString:@"https://" withString:@"custom://"];
+    videoURL = [NSURL URLWithString:strVideoURL];
+  }
+  if([stringURL rangeOfString:@"http://"].location != NSNotFound) {
+    NSString *strVideoURL = [url.absoluteString stringByReplacingOccurrencesOfString:@"http://" withString:@"custom://"];
+    videoURL = [NSURL URLWithString:strVideoURL];
+  }
+  AVURLAsset *urlAsset = [AVURLAsset URLAssetWithURL:videoURL options:options];
+  _totalBufferedTime = 0;
+  _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
+  _pendingRequests = [NSMutableArray array];
+  [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
+
   AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:urlAsset];
   return [self initWithPlayerItem:item
                      frameUpdater:frameUpdater
@@ -303,11 +333,6 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   _player = [avFactory playerWithPlayerItem:item];
   _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
 
-  // set buffer to 3 seconds
-  NSTimeInterval interval = 1; // set to  0 for default duration.
-  _player.currentItem.preferredForwardBufferDuration = interval;
-  _player.automaticallyWaitsToMinimizeStalling = YES;
-
   // This is to fix 2 bugs: 1. blank video for encrypted video streams on iOS 16
   // (https://github.com/flutter/flutter/issues/111457) and 2. swapped width and height for some
   // video streams (not just iOS 16).  (https://github.com/flutter/flutter/issues/109116). An
@@ -327,16 +352,61 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 
   [self addObserversForItem:item player:_player];
 
+  [NSTimer scheduledTimerWithTimeInterval:1.0
+                                    target:self
+                                  selector:@selector(flushBuffer)
+                                  userInfo:nil
+                                  repeats:YES];
+
   [asset loadValuesAsynchronouslyForKeys:@[ @"tracks" ] completionHandler:assetCompletionHandler];
 
   return self;
 }
+
+- (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:_realURL];
+    NSInteger loadStart = loadingRequest.dataRequest.requestedOffset;
+    NSInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : loadStart + 1000000;
+    [request setValue:[NSString stringWithFormat:@"bytes=%ld-%ld", (long)loadStart, (long)loadEnd] forHTTPHeaderField:@"Range"];
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+    self.dataTask = [self.session dataTaskWithRequest:request];
+    [self.dataTask resume];
+    [self.pendingRequests addObject:loadingRequest];
+    return YES;
+}
+
+- (void)URLSession:(NSURLSession *)session
+          dataTask:(NSURLSessionDataTask *)dataTask
+didReceiveResponse:(NSURLResponse *)response
+ completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
+    self.responset = (NSHTTPURLResponse *) response;
+    completionHandler(NSURLSessionResponseAllow);
+
+}
+
+- (void)URLSession:(NSURLSession *)session
+          dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveData:(NSData *)data {
+    [self.videoData appendData:data];
+}
+
+- (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
+    [self.pendingRequests removeObject:loadingRequest];
+}
+
 
 - (void)observeValueForKeyPath:(NSString *)path
                       ofObject:(id)object
                         change:(NSDictionary *)change
                        context:(void *)context {
   if (context == timeRangeContext) {
+    NSArray *loadedTimeRanges = [object loadedTimeRanges];
+    NSTimeInterval totalLoadedSeconds = 0.0;
+    CMTimeRange timeRange = [loadedTimeRanges.firstObject CMTimeRangeValue];
+    totalLoadedSeconds = CMTimeGetSeconds(timeRange.start) + CMTimeGetSeconds(timeRange.duration);
+    self.totalBufferedTime = totalLoadedSeconds;
+    Float64 tduration = 0;
     if (_eventSink != nil) {
       NSMutableArray<NSArray<NSNumber *> *> *values = [[NSMutableArray alloc] init];
       for (NSValue *rangeValue in [object loadedTimeRanges]) {
@@ -389,6 +459,36 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
           @{@"event" : @"isPlayingStateUpdate", @"isPlaying" : player.rate > 0 ? @YES : @NO});
     }
   }
+}
+
+- (void)flushBuffer {    
+        if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
+        Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
+        if (self.dataTask.state == NSURLSessionTaskStateCompleted && remainingBuffer < 10) {
+          [self processPendingRequests];
+        }  
+}
+
+- (void)processPendingRequests {
+    NSMutableArray *requestsCompleted = [NSMutableArray array];
+    for (AVAssetResourceLoadingRequest *loadingRequest in self.pendingRequests) {
+        if (loadingRequest.dataRequest.requestedLength == 2) {
+            self.contentLength = [[[self.responset valueForHTTPHeaderField:@"Content-Range"] componentsSeparatedByString:@"/"][1] integerValue];
+            loadingRequest.contentInformationRequest.byteRangeAccessSupported = YES;
+            loadingRequest.contentInformationRequest.contentLength = self.contentLength;
+            loadingRequest.contentInformationRequest.contentType = @"video/mp4";
+            [loadingRequest.dataRequest respondWithData:self.videoData];
+            [loadingRequest finishLoading];
+            [requestsCompleted addObject:loadingRequest];
+            [self.videoData initWithCapacity:self.contentLength];
+        } else {
+            [loadingRequest.dataRequest respondWithData:self.videoData];
+            [loadingRequest finishLoading];
+            [requestsCompleted addObject:loadingRequest];
+            [self.videoData initWithCapacity:self.contentLength];
+        }
+    }
+    [self.pendingRequests removeObjectsInArray:requestsCompleted];
 }
 
 - (void)updatePlayingState {
