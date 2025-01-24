@@ -107,22 +107,22 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     _videoPlayerController?.setLooping(true);
     _videoPlayerController?.play();
-    _nextVideoPlayerController =
-        VideoPlayerController.networkUrl(Uri.parse(srcs[1]));
-    _nextVideoPlayerController?.initialize().then((_) {
-      // logInit(_nextVideoPlayerController);
-    });
-    _previousVideoPlayerController =
-        VideoPlayerController.networkUrl(Uri.parse(srcs[srcs.length - 1]));
-    _previousVideoPlayerController?.initialize().then((_) {});
-    // setState(() {});
+    // _nextVideoPlayerController =
+    //     VideoPlayerController.networkUrl(Uri.parse(srcs[1]));
+    // _nextVideoPlayerController?.initialize().then((_) {
+    //   // logInit(_nextVideoPlayerController);
+    // });
+    // _previousVideoPlayerController =
+    //     VideoPlayerController.networkUrl(Uri.parse(srcs[srcs.length - 1]));
+    // _previousVideoPlayerController?.initialize().then((_) {});
+    // // setState(() {});
   }
 
   @override
   void dispose() {
     _videoPlayerController?.dispose();
-    _nextVideoPlayerController?.dispose();
-    _previousVideoPlayerController?.dispose();
+    // _nextVideoPlayerController?.dispose();
+    // _previousVideoPlayerController?.dispose();
     super.dispose();
   }
 
@@ -183,7 +183,7 @@ class _MyHomePageState extends State<MyHomePage> {
             PageView.builder(
                 scrollDirection: Axis.vertical,
                 onPageChanged: (index) {
-                  _nextVideo(index);
+                  // _nextVideo(index);
                 },
                 itemBuilder: (context, index) {
                   return _videoPlayerController!.value.isInitialized

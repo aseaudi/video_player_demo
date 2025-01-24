@@ -232,29 +232,23 @@ packages:
   video_player:
     dependency: "direct main"
     description:
-      path: "packages/video_player/video_player"
-      ref: "video_player-2.9.2.1"
-      resolved-ref: a22fe5ae2f4318402e0395f042071baae4330e5c
-      url: "https://github.com/aseaudi/packages.git"
-    source: git
+      path: "video_player-2.9.2"
+      relative: true
+    source: path
     version: "2.9.2"
   video_player_android:
     dependency: transitive
     description:
-      path: "packages/video_player/video_player_android"
-      ref: "video_player_android-2.7.16"
-      resolved-ref: a4d463171d9f3e1b5ba4f3ae9a204e3e349b1d29
-      url: "https://github.com/aseaudi/packages.git"
-    source: git
+      path: "video_player_android-2.7.16"
+      relative: true
+    source: path
     version: "2.7.16"
   video_player_avfoundation:
     dependency: transitive
     description:
-      path: "packages/video_player/video_player_avfoundation"
-      ref: "video_player_avfoundation-2.6.3"
-      resolved-ref: "2d903a0bbee779d93ecd742d6056a783bd3550ae"
-      url: "https://github.com/aseaudi/packages.git"
-    source: git
+      path: "video_player_avfoundation-2.6.3"
+      relative: true
+    source: path
     version: "2.6.3"
   video_player_platform_interface:
     dependency: transitive

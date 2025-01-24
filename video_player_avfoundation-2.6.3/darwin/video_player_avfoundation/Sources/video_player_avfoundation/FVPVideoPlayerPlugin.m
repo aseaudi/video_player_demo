@@ -395,8 +395,8 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-    NSLog(@"XXXXX didReceiveData");
-    NSLog(@"XXXXX didReceiveData append data to videoData");
+    // NSLog(@"XXXXX didReceiveData");
+    // NSLog(@"XXXXX didReceiveData append data to videoData");
     [self.videoData appendData:data];
 }
 
