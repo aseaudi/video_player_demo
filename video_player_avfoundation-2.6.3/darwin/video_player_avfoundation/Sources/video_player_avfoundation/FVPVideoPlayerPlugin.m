@@ -364,15 +364,22 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource");
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new loading request");
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:_realURL];
     NSInteger loadStart = loadingRequest.dataRequest.requestedOffset;
     NSInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : loadStart + 1000000;
     [request setValue:[NSString stringWithFormat:@"bytes=%ld-%ld", (long)loadStart, (long)loadEnd] forHTTPHeaderField:@"Range"];
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new session for new loading request");
     self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new data task for new session");
     self.dataTask = [self.session dataTaskWithRequest:request];
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource resume task");
     [self.dataTask resume];
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource add new loading request to pending requests");
     [self.pendingRequests addObject:loadingRequest];
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource return YES");
     return YES;
 }
 
@@ -388,10 +395,14 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
+    NSLog(@"XXXXX didReceiveData");
+    NSLog(@"XXXXX didReceiveData append data to videoData");
     [self.videoData appendData:data];
 }
 
 - (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
+    NSLog(@"XXXXX didCancelLoadingRequest");
+    NSLog(@"XXXXX didCancelLoadingRequest remove loading request from pending requests");
     [self.pendingRequests removeObject:loadingRequest];
 }
 
@@ -461,33 +472,52 @@ didReceiveResponse:(NSURLResponse *)response
   }
 }
 
-- (void)flushBuffer {    
+- (void)flushBuffer {
+        NSLog(@"XXXXX flushBuffer");
+        NSLog(@"XXXXX flushBuffer currentTime: %.2f seconds", CMTimeGetSeconds(_player.currentTime));
+        NSLog(@"XXXXX flushBuffer _totalBufferedTime: %.2f seconds", _totalBufferedTime);
+        if (isnan(CMTimeGetSeconds(_player.currentTime))) return;
         if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
+        NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
         if (self.dataTask.state == NSURLSessionTaskStateCompleted && remainingBuffer < 10) {
+          NSLog(@"XXXXX flushBuffer processPendingRequests");
           [self processPendingRequests];
         }  
 }
 
 - (void)processPendingRequests {
+    NSLog(@"XXXXX processPendingRequests");
     NSMutableArray *requestsCompleted = [NSMutableArray array];
     for (AVAssetResourceLoadingRequest *loadingRequest in self.pendingRequests) {
         if (loadingRequest.dataRequest.requestedLength == 2) {
+            NSLog(@"XXXXX processPendingRequests loadingRequest.dataRequest.requestedLength == 2");
             self.contentLength = [[[self.responset valueForHTTPHeaderField:@"Content-Range"] componentsSeparatedByString:@"/"][1] integerValue];
+            NSLog(@"XXXXX processPendingRequests add headers byterangesupported, contentlength, contenttype");
             loadingRequest.contentInformationRequest.byteRangeAccessSupported = YES;
             loadingRequest.contentInformationRequest.contentLength = self.contentLength;
             loadingRequest.contentInformationRequest.contentType = @"video/mp4";
+            NSLog(@"XXXXX processPendingRequests respondWithData");
             [loadingRequest.dataRequest respondWithData:self.videoData];
+            NSLog(@"XXXXX processPendingRequests finishLoading");
             [loadingRequest finishLoading];
+            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
             [requestsCompleted addObject:loadingRequest];
+            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
             [self.videoData initWithCapacity:self.contentLength];
         } else {
+            NSLog(@"XXXXX processPendingRequests loadingRequest.dataRequest.requestedLength != 2");
+            NSLog(@"XXXXX processPendingRequests respondWithData");
             [loadingRequest.dataRequest respondWithData:self.videoData];
+            NSLog(@"XXXXX processPendingRequests finishLoading");
             [loadingRequest finishLoading];
+            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
             [requestsCompleted addObject:loadingRequest];
+            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
             [self.videoData initWithCapacity:self.contentLength];
         }
     }
+    NSLog(@"XXXXX processPendingRequests remove completed requests from pending requests array");
     [self.pendingRequests removeObjectsInArray:requestsCompleted];
 }
 
