@@ -473,7 +473,7 @@ didReceiveResponse:(NSURLResponse *)response
 }
 
 - (void)flushBuffer {
-        NSLog(@"XXXXX flushBuffer");
+        NSLog(@"XXXXX flushBuffer v5");
         NSLog(@"XXXXX flushBuffer currentTime: %.2f seconds", CMTimeGetSeconds(_player.currentTime));
         NSLog(@"XXXXX flushBuffer _totalBufferedTime: %.2f seconds", _totalBufferedTime);
         if (isnan(CMTimeGetSeconds(_player.currentTime))) return;
@@ -481,10 +481,14 @@ didReceiveResponse:(NSURLResponse *)response
         // if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
-        if (self.dataTask.state == NSURLSessionTaskStateCompleted && remainingBuffer < 15 && remainingBuffer >= 0) {
-          NSLog(@"XXXXX flushBuffer processPendingRequests");
+        if (self.dataTask.state == NSURLSessionTaskStateCompleted) {
+          NSLog(@"XXXXX flushBuffer dataTask completed recieved %lld bytes", _dataTask.countOfBytesReceived);
+          if (remainingBuffer < 15 && remainingBuffer >= 0) {
+            NSLog(@"XXXXX flushBuffer remainingBuffer < minBuffer");
+            NSLog(@"XXXXX flushBuffer processPendingRequests");
           [self processPendingRequests];
-        }  
+          }  
+        }
 }
 
 - (void)processPendingRequests {
@@ -508,7 +512,7 @@ didReceiveResponse:(NSURLResponse *)response
             [self.videoData initWithCapacity:self.contentLength];
         } else {
             NSLog(@"XXXXX processPendingRequests loadingRequest.dataRequest.requestedLength != 2");
-            NSLog(@"XXXXX processPendingRequests respondWithData");
+            NSLog(@"XXXXX processPendingRequests respondWithData size %lu bytes", (unsigned long)_videoData.length);
             [loadingRequest.dataRequest respondWithData:self.videoData];
             NSLog(@"XXXXX processPendingRequests finishLoading");
             [loadingRequest finishLoading];
