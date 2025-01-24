@@ -480,7 +480,7 @@ didReceiveResponse:(NSURLResponse *)response
         if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
-        if (self.dataTask.state == NSURLSessionTaskStateCompleted && remainingBuffer < 10) {
+        if (self.dataTask.state == NSURLSessionTaskStateCompleted && remainingBuffer < 15 && remainingBuffer > 10) {
           NSLog(@"XXXXX flushBuffer processPendingRequests");
           [self processPendingRequests];
         }  
