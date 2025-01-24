@@ -477,10 +477,11 @@ didReceiveResponse:(NSURLResponse *)response
         NSLog(@"XXXXX flushBuffer currentTime: %.2f seconds", CMTimeGetSeconds(_player.currentTime));
         NSLog(@"XXXXX flushBuffer _totalBufferedTime: %.2f seconds", _totalBufferedTime);
         if (isnan(CMTimeGetSeconds(_player.currentTime))) return;
-        if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
+        if (isnan(_totalBufferedTime)) _totalBufferedTime = 0;
+        // if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
-        if (self.dataTask.state == NSURLSessionTaskStateCompleted && remainingBuffer < 15 && remainingBuffer > 10) {
+        if (self.dataTask.state == NSURLSessionTaskStateCompleted && remainingBuffer < 15 && remainingBuffer >= 0) {
           NSLog(@"XXXXX flushBuffer processPendingRequests");
           [self processPendingRequests];
         }  
