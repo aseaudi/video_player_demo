@@ -370,6 +370,8 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
     NSInteger loadStart = loadingRequest.dataRequest.requestedOffset;
     NSInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : loadStart + 1000000;
     [request setValue:[NSString stringWithFormat:@"bytes=%ld-%ld", (long)loadStart, (long)loadEnd] forHTTPHeaderField:@"Range"];
+    NSString *userAgent = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36";
+    [request setValue:userAgent forHTTPHeaderField:@"User-Agent"];
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new session for new loading request");
     self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
@@ -473,7 +475,7 @@ didReceiveResponse:(NSURLResponse *)response
 }
 
 - (void)flushBuffer {
-        NSLog(@"XXXXX flushBuffer v5");
+        NSLog(@"XXXXX flushBuffer v6");
         NSLog(@"XXXXX flushBuffer currentTime: %.2f seconds", CMTimeGetSeconds(_player.currentTime));
         NSLog(@"XXXXX flushBuffer _totalBufferedTime: %.2f seconds", _totalBufferedTime);
         if (isnan(CMTimeGetSeconds(_player.currentTime))) return;
