@@ -88,7 +88,8 @@ class _MyHomePageState extends State<MyHomePage> {
   void videoListener() {
     // print(
     //     'XXXX ${_videoPlayerController?.dataSource.toString()} ${_videoPlayerController?.value.toString()}');
-    videoStats = _videoPlayerController!.dataSource +"\nBuffered: " + _videoPlayerController!.value.buffered[0].end.toString();
+    // videoStats = _videoPlayerController!.dataSource +"\nBuffered: " + _videoPlayerController!.value.buffered[0].end.toString();
+    videoStats = "${_videoPlayerController!.dataSource}\nCurrentTime: ${_videoPlayerController!.value.position}\nBufferedTime: ${_videoPlayerController!.value.buffered[0].end}";
     setState(() {});
   }
 
