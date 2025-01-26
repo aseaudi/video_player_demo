@@ -103,6 +103,8 @@
 @property NSUInteger contentLength;
 @property Float64 totalBufferedTime;
 @property NSURL *realURL;
+@property NSUInteger minBuffer;
+@property NSUInteger maxBuffer;
 
 - (instancetype)initWithURL:(NSURL *)url
                frameUpdater:(FVPFrameUpdater *)frameUpdater
@@ -120,6 +122,8 @@ static void *timeRangeContext = &timeRangeContext;
 static void *statusContext = &statusContext;
 static void *presentationSizeContext = &presentationSizeContext;
 static void *durationContext = &durationContext;
+static void *isPlaybackBufferEmptyContext = &isPlaybackBufferEmptyContext;
+static void *isPlaybackBufferFullContext = &isPlaybackBufferFullContext;
 static void *playbackLikelyToKeepUpContext = &playbackLikelyToKeepUpContext;
 static void *rateContext = &rateContext;
 
@@ -172,6 +176,15 @@ static void *rateContext = &rateContext;
          forKeyPath:@"playbackLikelyToKeepUp"
             options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
             context:playbackLikelyToKeepUpContext];
+  [item addObserver:self
+         forKeyPath:@"isPlaybackBufferEmpty"
+            options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
+            context:isPlaybackBufferEmptyContext];
+  [item addObserver:self
+         forKeyPath:@"isPlaybackBufferFull"
+            options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew
+            context:isPlaybackBufferFullContext];
+
 
   // Add observer to AVPlayer instead of AVPlayerItem since the AVPlayerItem does not have a "rate"
   // property
@@ -278,6 +291,8 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   }
   AVURLAsset *urlAsset = [AVURLAsset URLAssetWithURL:videoURL options:options];
   _totalBufferedTime = 0;
+  _minBuffer = 5;
+  _maxBuffer = 10;
   _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
   _pendingRequests = [NSMutableArray array];
   [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
@@ -332,6 +347,8 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 
   _player = [avFactory playerWithPlayerItem:item];
   _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+  _player.automaticallyWaitsToMinimizeStalling = NO;
+  // item.preferredForwardBufferDuration = 1.0;
 
   // This is to fix 2 bugs: 1. blank video for encrypted video streams on iOS 16
   // (https://github.com/flutter/flutter/issues/111457) and 2. swapped width and height for some
@@ -359,7 +376,6 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
                                   repeats:YES];
 
   [asset loadValuesAsynchronouslyForKeys:@[ @"tracks" ] completionHandler:assetCompletionHandler];
-
   return self;
 }
 
@@ -395,6 +411,7 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
+    // [NSThread sleepForTimeInterval:2.0f]; // simulate slow download bandwidth
     // NSLog(@"XXXXX didReceiveData");
     // NSLog(@"XXXXX didReceiveData append data to videoData");
     [self.videoData appendData:data];
@@ -432,10 +449,13 @@ didReceiveResponse:(NSURLResponse *)response
     switch (item.status) {
       case AVPlayerItemStatusFailed:
         [self sendFailedToLoadVideoEvent];
+        NSLog(@"XXXXX obeserveValueForKeyPath AVPlayerItemStatusFailed");
         break;
       case AVPlayerItemStatusUnknown:
+        NSLog(@"XXXXX obeserveValueForKeyPath AVPlayerItemStatusUnknown");
         break;
       case AVPlayerItemStatusReadyToPlay:
+        NSLog(@"XXXXX obeserveValueForKeyPath AVPlayerItemStatusReadyToPlay");
         [item addOutput:_videoOutput];
         [self setupEventSinkIfReadyToPlay];
         [self updatePlayingState];
@@ -456,11 +476,14 @@ didReceiveResponse:(NSURLResponse *)response
       if (_eventSink != nil) {
         _eventSink(@{@"event" : @"bufferingEnd"});
       }
+      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp bufferingEnd");
     } else {
       if (_eventSink != nil) {
         _eventSink(@{@"event" : @"bufferingStart"});
       }
+      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp bufferingStart");
     }
+    
   } else if (context == rateContext) {
     // Important: Make sure to cast the object to AVPlayer when observing the rate property,
     // as it is not available in AVPlayerItem.
@@ -469,11 +492,27 @@ didReceiveResponse:(NSURLResponse *)response
       _eventSink(
           @{@"event" : @"isPlayingStateUpdate", @"isPlaying" : player.rate > 0 ? @YES : @NO});
     }
+      NSLog(@"XXXXX obeserveValueForKeyPath rate %f", player.rate);
+  } else if (context == isPlaybackBufferEmptyContext) {
+    AVPlayer *player = (AVPlayer *)object;
+    if (_eventSink != nil) {
+      _eventSink(@{@"event" : @"isPlaybackBufferEmpty"});
+    }
+    NSLog(@"XXXXX obeserveValueForKeyPath isPlaybackBufferEmpty");
+  } else if (context == isPlaybackBufferFullContext) {
+    AVPlayer *player = (AVPlayer *)object;
+    if (_eventSink != nil) {
+      _eventSink(@{@"event" : @"isPlaybackBufferFull"});
+    }
+    NSLog(@"XXXXX obeserveValueForKeyPath isPlaybackBufferFull");
   }
 }
 
 - (void)flushBuffer {
-        NSLog(@"XXXXX flushBuffer v5");
+        NSLog(@"XXXXX flushBuffer v51");
+        NSLog(@"XXXXX flushBuffer player status %d", _player.status);
+        NSLog(@"XXXXX flushBuffer player item status %d", _player.currentItem.status);
+        NSLog(@"XXXXX flushBuffer player rate %f", _player.rate);
         NSLog(@"XXXXX flushBuffer currentTime: %.2f seconds", CMTimeGetSeconds(_player.currentTime));
         NSLog(@"XXXXX flushBuffer _totalBufferedTime: %.2f seconds", _totalBufferedTime);
         if (isnan(CMTimeGetSeconds(_player.currentTime))) return;
@@ -481,12 +520,21 @@ didReceiveResponse:(NSURLResponse *)response
         // if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
+        if (remainingBuffer < 0) {
+            NSLog(@"XXXXX flushBuffer remainingBuffer =< 0");
+            NSLog(@"XXXXX flushBuffer pause video");
+            _player.rate = 0.0;            
+        } else if (remainingBuffer > _minBuffer) {
+            NSLog(@"XXXXX flushBuffer remainingBuffer > minBuffer");
+            NSLog(@"XXXXX flushBuffer start video");
+            _player.rate = 1.0;            
+        }
         if (self.dataTask.state == NSURLSessionTaskStateCompleted) {
           NSLog(@"XXXXX flushBuffer dataTask completed recieved %lld bytes", _dataTask.countOfBytesReceived);
-          if (remainingBuffer < 15 && remainingBuffer >= 0) {
-            NSLog(@"XXXXX flushBuffer remainingBuffer < minBuffer");
+          if (remainingBuffer < _maxBuffer) {
+            NSLog(@"XXXXX flushBuffer remainingBuffer < maxBuffer");
             NSLog(@"XXXXX flushBuffer processPendingRequests");
-          [self processPendingRequests];
+            [self processPendingRequests];          
           }  
         }
 }
@@ -808,6 +856,8 @@ didReceiveResponse:(NSURLResponse *)response
   [currentItem removeObserver:self forKeyPath:@"presentationSize"];
   [currentItem removeObserver:self forKeyPath:@"duration"];
   [currentItem removeObserver:self forKeyPath:@"playbackLikelyToKeepUp"];
+  [currentItem removeObserver:self forKeyPath:@"isPlaybackBufferEmpty"];
+  [currentItem removeObserver:self forKeyPath:@"isPlaybackBufferFull"];
   [_player removeObserver:self forKeyPath:@"rate"];
 }
 
