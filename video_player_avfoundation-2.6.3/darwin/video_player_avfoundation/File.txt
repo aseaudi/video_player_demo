@@ -1,0 +1,69 @@
+override func viewDidLoad() {
+        super.viewDidLoad()
+        avPlayer = AVPlayer()
+        avPlayerLayer = AVPlayerLayer(player: avPlayer)
+        videoView.layer.insertSublayer(avPlayerLayer, at: 0)
+        videoView.backgroundColor = UIColor.black         
+        url = URL(string: "xyzzy" +  currentPatient.videoURL())!
+        let asset = AVURLAsset(url: url)
+        asset.resourceLoader.setDelegate(self, queue: DispatchQueue.main)
+        let item = AVPlayerItem(asset: asset)
+
+        let avPlayerItem = item
+        avPlayer.replaceCurrentItem(with: avPlayerItem)
+
+        videoScrollView.delegate = self
+        videoScrollView.minimumZoomScale = 1.0
+        videoScrollView.maximumZoomScale = 6.0
+
+
+
+
+    }
+
+ func resourceLoader(_ resourceLoader: AVAssetResourceLoader, shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
+        let urlString = loadingRequest.request.url?.absoluteString
+        let urlComponents = urlString?.components(separatedBy: "xyzzy")
+        let url = URL(string: urlComponents![1])           
+        let request = loadingRequest.dataRequest!         
+        let infoRequest = loadingRequest.contentInformationRequest
+
+        let task = globalSession.dataTask(with: url!) { (data, response, error) in
+            self.avPlayerThread.async {
+                if error == nil && data != nil {
+
+                    let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, response?.mimeType as! CFString, nil)
+
+                    if let infoRequest = infoRequest {
+                        infoRequest.contentType = uti?.takeRetainedValue() as? String
+                        if request.requestsAllDataToEndOfResource == false {
+                            infoRequest.contentLength = Int64(request.requestedLength)
+                        } else {
+                            infoRequest.contentLength = Int64((data?.count)!)
+                        }
+
+
+                        infoRequest.isByteRangeAccessSupported = true
+
+
+                    }
+
+
+                    if infoRequest == nil  || request.requestsAllDataToEndOfResource == true {
+
+                            loadingRequest.dataRequest?.respond(with: data!)                          
+                    }
+
+                    loadingRequest.finishLoading()
+                } else {
+                    print ("error \(error)")
+                    loadingRequest.finishLoading(with: error)
+                }
+
+            }
+        }
+        task.resume()
+
+        return true
+
+    }
