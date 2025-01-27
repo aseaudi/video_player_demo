@@ -153,6 +153,9 @@ static void *rateContext = &rateContext;
   if (!_disposed) {
     [self removeKeyValueObservers];
   }
+    [self.session invalidateAndCancel];
+    self.session = nil;
+    
 }
 
 - (void)addObserversForItem:(AVPlayerItem *)item player:(AVPlayer *)player {
@@ -295,6 +298,9 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   _maxBuffer = 10;
   _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
   _pendingRequests = [NSMutableArray array];
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+
   [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
 
   AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:urlAsset];
@@ -386,9 +392,9 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
     NSInteger loadStart = loadingRequest.dataRequest.requestedOffset;
     NSInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : loadStart + 1000000;
     [request setValue:[NSString stringWithFormat:@"bytes=%ld-%ld", (long)loadStart, (long)loadEnd] forHTTPHeaderField:@"Range"];
-    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new session for new loading request");
-    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+//    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+//    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new session for new loading request");
+//    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new data task for new session");
     self.dataTask = [self.session dataTaskWithRequest:request];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource resume task");
@@ -509,7 +515,7 @@ didReceiveResponse:(NSURLResponse *)response
 }
 
 - (void)flushBuffer {
-        NSLog(@"XXXXX flushBuffer v51");
+        NSLog(@"XXXXX flushBuffer v52");
         NSLog(@"XXXXX flushBuffer player status %d", _player.status);
         NSLog(@"XXXXX flushBuffer player item status %d", _player.currentItem.status);
         NSLog(@"XXXXX flushBuffer player rate %f", _player.rate);
@@ -520,11 +526,11 @@ didReceiveResponse:(NSURLResponse *)response
         // if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
-        if (remainingBuffer < 0) {
+        if (remainingBuffer <= 0 && _player.rate == 1.0 ) {
             NSLog(@"XXXXX flushBuffer remainingBuffer =< 0");
             NSLog(@"XXXXX flushBuffer pause video");
             _player.rate = 0.0;            
-        } else if (remainingBuffer > _minBuffer) {
+        } else if (remainingBuffer > _minBuffer && _player.rate == 0.0 ) {
             NSLog(@"XXXXX flushBuffer remainingBuffer > minBuffer");
             NSLog(@"XXXXX flushBuffer start video");
             _player.rate = 1.0;            
