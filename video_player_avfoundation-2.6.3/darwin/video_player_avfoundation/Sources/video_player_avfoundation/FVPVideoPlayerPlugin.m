@@ -414,7 +414,7 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
-    NSLog("@XXXXX Custom Resource Loader v10");
+    NSLog(@"XXXXX Custom Resource Loader v10");
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource");
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new loading request");
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:_realURL];
