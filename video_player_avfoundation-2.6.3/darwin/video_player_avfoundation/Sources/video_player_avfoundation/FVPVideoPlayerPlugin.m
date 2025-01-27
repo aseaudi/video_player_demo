@@ -153,6 +153,7 @@ static void *rateContext = &rateContext;
   if (!_disposed) {
     [self removeKeyValueObservers];
   }
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self.session invalidateAndCancel];
     self.session = nil;
     
@@ -200,7 +201,19 @@ static void *rateContext = &rateContext;
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(itemDidPlayToEndTime:)
                                                name:AVPlayerItemDidPlayToEndTimeNotification
-                                             object:item];
+                                            object:item];
+    
+    // Observer for playback failure
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(itemFailedToPlayToEndTime:)
+                                                 name:AVPlayerItemFailedToPlayToEndTimeNotification
+                                               object:item];
+    
+    // Observer for playback stall (buffering)
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(itemPlaybackStalled:)
+                                                 name:AVPlayerItemPlaybackStalledNotification
+                                               object:item];
 }
 
 - (void)itemDidPlayToEndTime:(NSNotification *)notification {
@@ -212,7 +225,22 @@ static void *rateContext = &rateContext;
       _eventSink(@{@"event" : @"completed"});
     }
   }
+    NSLog(@"XXXXX Player did play to end time");
 }
+
+- (void)itemFailedToPlayToEndTime:(NSNotification *)notification {
+    NSLog(@"XXXXX Player failed to play to the end");
+    // Handle error (e.g., show an alert to the user)
+    NSError *error = notification.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
+    NSLog(@"XXXXX Error: %@", error.localizedDescription);
+}
+
+- (void)itemPlaybackStalled:(NSNotification *)notification {
+    NSLog(@"XXXXX Player playback stalled (buffering)");
+//    _player.rate = 0.0;
+    // Handle logic for when playback is stalled (e.g., show a loading spinner)
+}
+
 
 const int64_t TIME_UNSET = -9223372036854775807;
 
@@ -375,7 +403,7 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 
   [self addObserversForItem:item player:_player];
 
-  [NSTimer scheduledTimerWithTimeInterval:1.0
+  [NSTimer scheduledTimerWithTimeInterval:0.2
                                     target:self
                                   selector:@selector(flushBuffer)
                                   userInfo:nil
@@ -482,12 +510,12 @@ didReceiveResponse:(NSURLResponse *)response
       if (_eventSink != nil) {
         _eventSink(@{@"event" : @"bufferingEnd"});
       }
-      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp bufferingEnd");
+      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp YES");
     } else {
       if (_eventSink != nil) {
         _eventSink(@{@"event" : @"bufferingStart"});
       }
-      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp bufferingStart");
+      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp NO");
     }
     
   } else if (context == rateContext) {
@@ -831,6 +859,8 @@ didReceiveResponse:(NSURLResponse *)response
 
   [self.player replaceCurrentItemWithPlayerItem:nil];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self.session invalidateAndCancel];
+    self.session = nil;
 }
 
 - (void)dispose {
