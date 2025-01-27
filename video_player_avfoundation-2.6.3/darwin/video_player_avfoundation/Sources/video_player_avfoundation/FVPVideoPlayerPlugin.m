@@ -438,6 +438,7 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
           dataTask:(NSURLSessionDataTask *)dataTask
 didReceiveResponse:(NSURLResponse *)response
  completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
+    NSLog(@"XXXXX didReceiveResponse");
     self.responset = (NSHTTPURLResponse *) response;
     completionHandler(NSURLSessionResponseAllow);
 
@@ -446,11 +447,34 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-//     [NSThread sleepForTimeInterval:2.0f]; // simulate slow download bandwidth
-    NSLog(@"XXXXX didReceiveData data.length %lu, total %lu", data.length, _videoData.length);
+    //  [NSThread sleepForTimeInterval:4.0f]; // simulate slow download bandwidth
+    NSLog(@"XXXXX didReceiveData data.length %lu, total %lu", data.length, _videoData.length + data.length);
     // NSLog(@"XXXXX didReceiveData append data to videoData");
     [self.videoData appendData:data];
 }
+
+- (void)URLSession:(NSURLSession *)session
+              task:(NSURLSessionTask *)task
+didCompleteWithError:(NSError *)error {
+    if (error) {
+           // Error occurred
+           NSLog(@"Task completed with error: %@", error.localizedDescription);
+           
+           // To print the full error details (including error code and domain)
+           NSLog(@"Error details: %@", error);
+           
+           // Optional: Check for specific error codes and handle them accordingly
+           if (error.code == NSURLErrorNotConnectedToInternet) {
+               NSLog(@"No internet connection.");
+           } else if (error.code == NSURLErrorTimedOut) {
+               NSLog(@"The request timed out.");
+           }
+       } else {
+           // No error, task completed successfully
+           NSLog(@"Task completed successfully.");
+       }
+}
+
 
 - (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
     NSLog(@"XXXXX didCancelLoadingRequest");
