@@ -324,7 +324,8 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   _totalBufferedTime = 0;
   _minBuffer = 10;
   _maxBuffer = 60;
-  _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
+    _videoData = [NSMutableData data];
+//  _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
   _pendingRequests = [NSMutableArray array];
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
     self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
