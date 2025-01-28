@@ -71,7 +71,7 @@
 
 #pragma mark -
 
-@interface FVPVideoPlayer ()
+@interface FVPVideoPlayer () <NSURLSessionDelegate, NSURLSessionDataDelegate, NSURLSessionTaskDelegate>
 @property(readonly, nonatomic) AVPlayerItemVideoOutput *videoOutput;
 // The plugin registrar, to obtain view information from.
 @property(nonatomic, weak) NSObject<FlutterPluginRegistrar> *registrar;
@@ -477,6 +477,8 @@ didCompleteWithError:(NSError *)error {
        } else {
            // No error, task completed successfully
            NSLog(@"XXXXX Task completed successfully.");
+           NSLog(@"XXXXX Calling flushBuffer");
+           [self flushBuffer];
        }
 }
 
@@ -633,26 +635,33 @@ didCompleteWithError:(NSError *)error {
             loadingRequest.contentInformationRequest.byteRangeAccessSupported = YES;
             loadingRequest.contentInformationRequest.contentLength = self.contentLength;
             loadingRequest.contentInformationRequest.contentType = @"video/mp4";
-            NSLog(@"XXXXX processPendingRequests respondWithData");
-            [loadingRequest.dataRequest respondWithData:self.videoData];
-            NSLog(@"XXXXX processPendingRequests finishLoading");
-            [loadingRequest finishLoading];
-            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
-            [requestsCompleted addObject:loadingRequest];
+//            NSLog(@"XXXXX processPendingRequests respondWithData");
+//            [loadingRequest.dataRequest respondWithData:self.videoData];
+//            NSLog(@"XXXXX processPendingRequests finishLoading");
+//            [loadingRequest finishLoading];
+//            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
+//            [requestsCompleted addObject:loadingRequest];
 //            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
 //            [self.videoData initWithCapacity:self.contentLength];
         } else {
             NSLog(@"XXXXX processPendingRequests loadingRequest.dataRequest.requestedLength != 2");
-            NSLog(@"XXXXX processPendingRequests respondWithData size %lu bytes", (unsigned long)_videoData.length);
-            [loadingRequest.dataRequest respondWithData:self.videoData];
-            NSLog(@"XXXXX processPendingRequests finishLoading");
-            [loadingRequest finishLoading];
-            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
-            [requestsCompleted addObject:loadingRequest];
+//            NSLog(@"XXXXX processPendingRequests respondWithData size %lu bytes", (unsigned long)_videoData.length);
+//            [loadingRequest.dataRequest respondWithData:self.videoData];
+//            NSLog(@"XXXXX processPendingRequests finishLoading");
+//            [loadingRequest finishLoading];
+//            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
+//            [requestsCompleted addObject:loadingRequest];
 //            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
 //            [self.videoData initWithCapacity:self.contentLength];
         }
+        NSLog(@"XXXXX processPendingRequests respondWithData size %lu bytes", (unsigned long)_videoData.length);
+        [loadingRequest.dataRequest respondWithData:self.videoData];
+        NSLog(@"XXXXX processPendingRequests finishLoading");
+        [loadingRequest finishLoading];
+        NSLog(@"XXXXX processPendingRequests add request to completed requests array");
+        [requestsCompleted addObject:loadingRequest];
     }
+    
     NSLog(@"XXXXX processPendingRequests remove completed requests from pending requests array");
     [self.pendingRequests removeObjectsInArray:requestsCompleted];
 }
