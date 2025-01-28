@@ -322,8 +322,8 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   }
   AVURLAsset *urlAsset = [AVURLAsset URLAssetWithURL:videoURL options:options];
   _totalBufferedTime = 0;
-  _minBuffer = 5;
-  _maxBuffer = 20;
+  _minBuffer = 10;
+  _maxBuffer = 60;
   _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
   _pendingRequests = [NSMutableArray array];
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
@@ -439,7 +439,10 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 didReceiveResponse:(NSURLResponse *)response
  completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
     NSLog(@"XXXXX didReceiveResponse");
+    NSLog(@"XXXXX %@", response);
+    NSLog(@"XXXXX init videoData");
     self.responset = (NSHTTPURLResponse *) response;
+    _videoData = [NSMutableData data];
     completionHandler(NSURLSessionResponseAllow);
 
 }
@@ -447,7 +450,7 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-    //  [NSThread sleepForTimeInterval:4.0f]; // simulate slow download bandwidth
+//      [NSThread sleepForTimeInterval:2.0f]; // simulate slow download bandwidth
     NSLog(@"XXXXX didReceiveData data.length %lu, total %lu", data.length, _videoData.length + data.length);
     // NSLog(@"XXXXX didReceiveData append data to videoData");
     [self.videoData appendData:data];
@@ -456,24 +459,45 @@ didReceiveResponse:(NSURLResponse *)response
 - (void)URLSession:(NSURLSession *)session
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
+    NSLog(@"XXXXX didCompleteWithError");
     if (error) {
            // Error occurred
-           NSLog(@"Task completed with error: %@", error.localizedDescription);
+           NSLog(@"XXXXXTask completed with error: %@", error.localizedDescription);
            
            // To print the full error details (including error code and domain)
-           NSLog(@"Error details: %@", error);
+           NSLog(@"XXXXX Error details: %@", error);
            
            // Optional: Check for specific error codes and handle them accordingly
            if (error.code == NSURLErrorNotConnectedToInternet) {
-               NSLog(@"No internet connection.");
+               NSLog(@"XXXXX No internet connection.");
            } else if (error.code == NSURLErrorTimedOut) {
-               NSLog(@"The request timed out.");
+               NSLog(@"XXXXX The request timed out.");
            }
        } else {
            // No error, task completed successfully
-           NSLog(@"Task completed successfully.");
+           NSLog(@"XXXXX Task completed successfully.");
        }
 }
+
+// NSURLSession delegate method for handling failures
+- (void)URLSession:(NSURLSession *)session
+               task:(NSURLSessionTask *)task
+ didFailWithError:(NSError *)error {
+    NSLog(@"XXXXX didFailWithError");
+    NSLog(@"XXXXX Data task failed with error: %@", error.localizedDescription);
+    
+    // Handle specific errors
+    if (error.code == NSURLErrorNotConnectedToInternet) {
+        NSLog(@"XXXXX No internet connection available.");
+    } else if (error.code == NSURLErrorTimedOut) {
+        NSLog(@"XXXXX The request timed out.");
+    } else {
+        NSLog(@"XXXXX Request failed with error: %@", error.localizedDescription);
+    }
+
+    // You can also handle the error gracefully by notifying the user, retrying the request, etc.
+}
+
 
 
 - (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
@@ -579,7 +603,7 @@ didCompleteWithError:(NSError *)error {
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
         if (remainingBuffer <= _minBuffer && _player.rate == 1.0 ) {
-            NSLog(@"XXXXX flushBuffer remainingBuffer =< 5");
+            NSLog(@"XXXXX flushBuffer remainingBuffer =< minBuffer");
             NSLog(@"XXXXX flushBuffer pause video");
             _player.rate = 0.0;            
         } else if (remainingBuffer > _minBuffer && _player.rate == 0.0 ) {
@@ -614,8 +638,8 @@ didCompleteWithError:(NSError *)error {
             [loadingRequest finishLoading];
             NSLog(@"XXXXX processPendingRequests add request to completed requests array");
             [requestsCompleted addObject:loadingRequest];
-            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
-            [self.videoData initWithCapacity:self.contentLength];
+//            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
+//            [self.videoData initWithCapacity:self.contentLength];
         } else {
             NSLog(@"XXXXX processPendingRequests loadingRequest.dataRequest.requestedLength != 2");
             NSLog(@"XXXXX processPendingRequests respondWithData size %lu bytes", (unsigned long)_videoData.length);
@@ -624,8 +648,8 @@ didCompleteWithError:(NSError *)error {
             [loadingRequest finishLoading];
             NSLog(@"XXXXX processPendingRequests add request to completed requests array");
             [requestsCompleted addObject:loadingRequest];
-            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
-            [self.videoData initWithCapacity:self.contentLength];
+//            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
+//            [self.videoData initWithCapacity:self.contentLength];
         }
     }
     NSLog(@"XXXXX processPendingRequests remove completed requests from pending requests array");
