@@ -92,6 +92,7 @@
 // (e.g., after a seek while paused). If YES, the display link should continue to run until the next
 // frame is successfully provided.
 @property(nonatomic, assign) BOOL waitingForFrame;
+@property (strong, nonatomic) dispatch_queue_t customQueue;
 
 @property NSMutableArray *pendingRequests;
 @property NSMutableData *videoData;
@@ -329,8 +330,20 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   _pendingRequests = [NSMutableArray array];
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
     self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+    // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
+  // self.customQueue = dispatch_queue_create("resourceLoaderQueue", DISPATCH_QUEUE_SERIAL);
+  // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:self.customQueue];
+  // dispatch_get_main_queue() means that the delegate methods will be executed on the main thread.
+  // [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
+  
+  // Set the delegate with a nil queue (defaults to the main queue)
+  [urlAsset.resourceLoader setDelegate:self queue:nil];
 
-  [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
+  // Create a custom dispatch queue (with a specific name for debugging purposes)
+  // self.customQueue = dispatch_queue_create("resourceLoaderQueue", DISPATCH_QUEUE_SERIAL);
+  
+  // Set the delegate to the custom queue
+  // [urlAsset.resourceLoader setDelegate:self queue:self.customQueue];
 
   AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:urlAsset];
   return [self initWithPlayerItem:item
@@ -422,9 +435,12 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
     NSInteger loadStart = loadingRequest.dataRequest.requestedOffset;
     NSInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : loadStart + 1000000;
     [request setValue:[NSString stringWithFormat:@"bytes=%ld-%ld", (long)loadStart, (long)loadEnd] forHTTPHeaderField:@"Range"];
-//    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-//    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new session for new loading request");
-//    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+    // Ensure URL session is created only once
+    // if (!self.session) {
+    //     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    //     // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
+    //     self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:dispatch_get_main_queue()];
+    // }
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new data task for new session");
     self.dataTask = [self.session dataTaskWithRequest:request];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource resume task");
@@ -462,18 +478,19 @@ didReceiveResponse:(NSURLResponse *)response
 didCompleteWithError:(NSError *)error {
     NSLog(@"XXXXX didCompleteWithError");
     if (error) {
-           // Error occurred
-           NSLog(@"XXXXXTask completed with error: %@", error.localizedDescription);
-           
-           // To print the full error details (including error code and domain)
-           NSLog(@"XXXXX Error details: %@", error);
-           
-           // Optional: Check for specific error codes and handle them accordingly
-           if (error.code == NSURLErrorNotConnectedToInternet) {
-               NSLog(@"XXXXX No internet connection.");
-           } else if (error.code == NSURLErrorTimedOut) {
-               NSLog(@"XXXXX The request timed out.");
-           }
+        // Error occurred
+        NSLog(@"XXXXXTask completed with error: %@", error.localizedDescription);
+
+        // To print the full error details (including error code and domain)
+        NSLog(@"XXXXX Error details: %@", error);
+
+        // Optional: Check for specific error codes and handle them accordingly
+        if (error.code == NSURLErrorNotConnectedToInternet) {
+            NSLog(@"XXXXX No internet connection.");
+        } else if (error.code == NSURLErrorTimedOut) {
+            NSLog(@"XXXXX The request timed out.");
+        }
+        //[request finishLoadingWithError:error];
        } else {
            // No error, task completed successfully
            NSLog(@"XXXXX Task completed successfully.");
@@ -497,6 +514,7 @@ didCompleteWithError:(NSError *)error {
     } else {
         NSLog(@"XXXXX Request failed with error: %@", error.localizedDescription);
     }
+    //[request finishLoadingWithError:error];
 
     // You can also handle the error gracefully by notifying the user, retrying the request, etc.
 }
@@ -535,13 +553,13 @@ didCompleteWithError:(NSError *)error {
     switch (item.status) {
       case AVPlayerItemStatusFailed:
         [self sendFailedToLoadVideoEvent];
-        NSLog(@"XXXXX obeserveValueForKeyPath AVPlayerItemStatusFailed");
+        NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusFailed");
         break;
       case AVPlayerItemStatusUnknown:
-        NSLog(@"XXXXX obeserveValueForKeyPath AVPlayerItemStatusUnknown");
+        NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusUnknown");
         break;
       case AVPlayerItemStatusReadyToPlay:
-        NSLog(@"XXXXX obeserveValueForKeyPath AVPlayerItemStatusReadyToPlay");
+        NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusReadyToPlay");
         [item addOutput:_videoOutput];
         [self setupEventSinkIfReadyToPlay];
         [self updatePlayingState];
@@ -562,12 +580,12 @@ didCompleteWithError:(NSError *)error {
       if (_eventSink != nil) {
         _eventSink(@{@"event" : @"bufferingEnd"});
       }
-      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp YES");
+      NSLog(@"XXXXX observeValueForKeyPath playbackLikelyToKeepUp YES");
     } else {
       if (_eventSink != nil) {
         _eventSink(@{@"event" : @"bufferingStart"});
       }
-      NSLog(@"XXXXX obeserveValueForKeyPath playbackLikelyToKeepUp NO");
+      NSLog(@"XXXXX observeValueForKeyPath playbackLikelyToKeepUp NO");
     }
     
   } else if (context == rateContext) {
@@ -578,19 +596,19 @@ didCompleteWithError:(NSError *)error {
       _eventSink(
           @{@"event" : @"isPlayingStateUpdate", @"isPlaying" : player.rate > 0 ? @YES : @NO});
     }
-      NSLog(@"XXXXX obeserveValueForKeyPath rate %f", player.rate);
+      NSLog(@"XXXXX observeValueForKeyPath rate %f", player.rate);
   } else if (context == isPlaybackBufferEmptyContext) {
     AVPlayer *player = (AVPlayer *)object;
     if (_eventSink != nil) {
       _eventSink(@{@"event" : @"isPlaybackBufferEmpty"});
     }
-    NSLog(@"XXXXX obeserveValueForKeyPath isPlaybackBufferEmpty");
+    NSLog(@"XXXXX observeValueForKeyPath isPlaybackBufferEmpty");
   } else if (context == isPlaybackBufferFullContext) {
     AVPlayer *player = (AVPlayer *)object;
     if (_eventSink != nil) {
       _eventSink(@{@"event" : @"isPlaybackBufferFull"});
     }
-    NSLog(@"XXXXX obeserveValueForKeyPath isPlaybackBufferFull");
+    NSLog(@"XXXXX observeValueForKeyPath isPlaybackBufferFull");
   }
 }
 
@@ -602,7 +620,6 @@ didCompleteWithError:(NSError *)error {
         NSLog(@"XXXXX flushBuffer _totalBufferedTime: %.2f seconds", _totalBufferedTime);
         if (isnan(CMTimeGetSeconds(_player.currentTime))) return;
         if (isnan(_totalBufferedTime)) _totalBufferedTime = 0;
-        // if (_totalBufferedTime != _totalBufferedTime) _totalBufferedTime = 0;
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
         if (remainingBuffer <= _minBuffer && _player.rate == 1.0 ) {
@@ -635,24 +652,8 @@ didCompleteWithError:(NSError *)error {
             loadingRequest.contentInformationRequest.byteRangeAccessSupported = YES;
             loadingRequest.contentInformationRequest.contentLength = self.contentLength;
             loadingRequest.contentInformationRequest.contentType = @"video/mp4";
-//            NSLog(@"XXXXX processPendingRequests respondWithData");
-//            [loadingRequest.dataRequest respondWithData:self.videoData];
-//            NSLog(@"XXXXX processPendingRequests finishLoading");
-//            [loadingRequest finishLoading];
-//            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
-//            [requestsCompleted addObject:loadingRequest];
-//            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
-//            [self.videoData initWithCapacity:self.contentLength];
         } else {
             NSLog(@"XXXXX processPendingRequests loadingRequest.dataRequest.requestedLength != 2");
-//            NSLog(@"XXXXX processPendingRequests respondWithData size %lu bytes", (unsigned long)_videoData.length);
-//            [loadingRequest.dataRequest respondWithData:self.videoData];
-//            NSLog(@"XXXXX processPendingRequests finishLoading");
-//            [loadingRequest finishLoading];
-//            NSLog(@"XXXXX processPendingRequests add request to completed requests array");
-//            [requestsCompleted addObject:loadingRequest];
-//            NSLog(@"XXXXX processPendingRequests init videoData with content length capacity");
-//            [self.videoData initWithCapacity:self.contentLength];
         }
         NSLog(@"XXXXX processPendingRequests respondWithData size %lu bytes", (unsigned long)_videoData.length);
         [loadingRequest.dataRequest respondWithData:self.videoData];
