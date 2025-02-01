@@ -334,16 +334,16 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   // self.customQueue = dispatch_queue_create("resourceLoaderQueue", DISPATCH_QUEUE_SERIAL);
   // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:self.customQueue];
   // dispatch_get_main_queue() means that the delegate methods will be executed on the main thread.
-  [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
+  // [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
   
   // Set the delegate with a nil queue (defaults to the main queue)
   // [urlAsset.resourceLoader setDelegate:self queue:nil];
 
   // Create a custom dispatch queue (with a specific name for debugging purposes)
-  // self.customQueue = dispatch_queue_create("resourceLoaderQueue", DISPATCH_QUEUE_SERIAL);
+  self.customQueue = dispatch_queue_create("resourceLoaderQueue", DISPATCH_QUEUE_SERIAL);
   
   // Set the delegate to the custom queue
-  // [urlAsset.resourceLoader setDelegate:self queue:self.customQueue];
+  [urlAsset.resourceLoader setDelegate:self queue:self.customQueue];
 
   AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:urlAsset];
   return [self initWithPlayerItem:item
