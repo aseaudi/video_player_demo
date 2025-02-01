@@ -329,7 +329,7 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 //  _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
   _pendingRequests = [NSMutableArray array];
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
     // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
   // self.customQueue = dispatch_queue_create("resourceLoaderQueue", DISPATCH_QUEUE_SERIAL);
   // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:self.customQueue];
