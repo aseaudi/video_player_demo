@@ -100,7 +100,9 @@
 @property NSURLConnection *connection;
 
 @property NSURLSession *session;
-@property NSURLSessionDataTask *dataTask;
+// @property NSURLSessionDataTask *dataTask;
+@property BOOL dataTaskCompleted;
+@property NSUInteger dataTaskBytesReceived;
 @property NSUInteger contentLength;
 @property Float64 totalBufferedTime;
 @property NSURL *realURL;
@@ -329,13 +331,14 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 //  _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
   _pendingRequests = [NSMutableArray array];
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
+    self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+    // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
     // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:[[NSOperationQueue alloc] init]];
   // self.customQueue = dispatch_queue_create("resourceLoaderQueue", DISPATCH_QUEUE_SERIAL);
   // self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:self.customQueue];
   // dispatch_get_main_queue() means that the delegate methods will be executed on the main thread.
   [urlAsset.resourceLoader setDelegate:self queue:dispatch_get_main_queue()];
-  
+  // [urlAsset.resourceLoader setDelegate:self queue:[[NSOperationQueue alloc] init]];
   // Set the delegate with a nil queue (defaults to the main queue)
   // [urlAsset.resourceLoader setDelegate:self queue:nil];
 
@@ -428,7 +431,9 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
-    NSLog(@"XXXXX Custom Resource Loader v10");
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    NSLog(@"XXXXX Custom Resource Loader");
+    NSLog(@"XXXXX %@", [NSThread currentThread]);
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource");
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new loading request");
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:_realURL];
@@ -442,12 +447,16 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
     //     self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:dispatch_get_main_queue()];
     // }
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new data task for new session");
-    self.dataTask = [self.session dataTaskWithRequest:request];
+    // self.dataTask = [self.session dataTaskWithRequest:request];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource resume task");
-    [self.dataTask resume];
+    // [self.dataTask resume];
+    [[self.session dataTaskWithRequest:request] resume];
+    _dataTaskCompleted = NO;
+    _dataTaskBytesReceived = 0;
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource add new loading request to pending requests");
     [self.pendingRequests addObject:loadingRequest];
-    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource return YES");
+  });
+      NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource return YES");
     return YES;
 }
 
@@ -456,6 +465,7 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 didReceiveResponse:(NSURLResponse *)response
  completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
     NSLog(@"XXXXX didReceiveResponse");
+    // NSLog(@"XXXXX %@", [NSThread currentThread]);
     NSLog(@"XXXXX %@", response);
     NSLog(@"XXXXX init videoData");
     self.responset = (NSHTTPURLResponse *) response;
@@ -469,6 +479,7 @@ didReceiveResponse:(NSURLResponse *)response
     didReceiveData:(NSData *)data {
 //      [NSThread sleepForTimeInterval:2.0f]; // simulate slow download bandwidth
     NSLog(@"XXXXX didReceiveData data.length %lu, total %lu", data.length, _videoData.length + data.length);
+    NSLog(@"XXXXX %@", [NSThread currentThread]);
     // NSLog(@"XXXXX didReceiveData append data to videoData");
     [self.videoData appendData:data];
 }
@@ -477,6 +488,7 @@ didReceiveResponse:(NSURLResponse *)response
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
     NSLog(@"XXXXX didCompleteWithError");
+    NSLog(@"XXXXX %@", [NSThread currentThread]);
     if (error) {
         // Error occurred
         NSLog(@"XXXXXTask completed with error: %@", error.localizedDescription);
@@ -495,6 +507,8 @@ didCompleteWithError:(NSError *)error {
            // No error, task completed successfully
            NSLog(@"XXXXX Task completed successfully.");
            NSLog(@"XXXXX Calling flushBuffer");
+           _dataTaskCompleted = YES;
+           _dataTaskBytesReceived = task.countOfBytesReceived;
            [self flushBuffer];
        }
 }
@@ -504,6 +518,7 @@ didCompleteWithError:(NSError *)error {
                task:(NSURLSessionTask *)task
  didFailWithError:(NSError *)error {
     NSLog(@"XXXXX didFailWithError");
+    NSLog(@"XXXXX %@", [NSThread currentThread]);
     NSLog(@"XXXXX Data task failed with error: %@", error.localizedDescription);
     
     // Handle specific errors
@@ -523,6 +538,7 @@ didCompleteWithError:(NSError *)error {
 
 - (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
     NSLog(@"XXXXX didCancelLoadingRequest");
+    NSLog(@"XXXXX %@", [NSThread currentThread]);
     NSLog(@"XXXXX didCancelLoadingRequest remove loading request from pending requests");
     [self.pendingRequests removeObject:loadingRequest];
 }
@@ -532,87 +548,94 @@ didCompleteWithError:(NSError *)error {
                       ofObject:(id)object
                         change:(NSDictionary *)change
                        context:(void *)context {
-  if (context == timeRangeContext) {
-    NSArray *loadedTimeRanges = [object loadedTimeRanges];
-    NSTimeInterval totalLoadedSeconds = 0.0;
-    CMTimeRange timeRange = [loadedTimeRanges.firstObject CMTimeRangeValue];
-    totalLoadedSeconds = CMTimeGetSeconds(timeRange.start) + CMTimeGetSeconds(timeRange.duration);
-    self.totalBufferedTime = totalLoadedSeconds;
-    Float64 tduration = 0;
-    if (_eventSink != nil) {
-      NSMutableArray<NSArray<NSNumber *> *> *values = [[NSMutableArray alloc] init];
-      for (NSValue *rangeValue in [object loadedTimeRanges]) {
-        CMTimeRange range = [rangeValue CMTimeRangeValue];
-        int64_t start = FVPCMTimeToMillis(range.start);
-        [values addObject:@[ @(start), @(start + FVPCMTimeToMillis(range.duration)) ]];
-      }
-      _eventSink(@{@"event" : @"bufferingUpdate", @"values" : values});
-    }
-  } else if (context == statusContext) {
-    AVPlayerItem *item = (AVPlayerItem *)object;
-    switch (item.status) {
-      case AVPlayerItemStatusFailed:
-        [self sendFailedToLoadVideoEvent];
-        NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusFailed");
-        break;
-      case AVPlayerItemStatusUnknown:
-        NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusUnknown");
-        break;
-      case AVPlayerItemStatusReadyToPlay:
-        NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusReadyToPlay");
-        [item addOutput:_videoOutput];
-        [self setupEventSinkIfReadyToPlay];
-        [self updatePlayingState];
-        break;
-    }
-  } else if (context == presentationSizeContext || context == durationContext) {
-    AVPlayerItem *item = (AVPlayerItem *)object;
-    if (item.status == AVPlayerItemStatusReadyToPlay) {
-      // Due to an apparent bug, when the player item is ready, it still may not have determined
-      // its presentation size or duration. When these properties are finally set, re-check if
-      // all required properties and instantiate the event sink if it is not already set up.
-      [self setupEventSinkIfReadyToPlay];
-      [self updatePlayingState];
-    }
-  } else if (context == playbackLikelyToKeepUpContext) {
-    [self updatePlayingState];
-    if ([[_player currentItem] isPlaybackLikelyToKeepUp]) {
-      if (_eventSink != nil) {
-        _eventSink(@{@"event" : @"bufferingEnd"});
-      }
-      NSLog(@"XXXXX observeValueForKeyPath playbackLikelyToKeepUp YES");
-    } else {
-      if (_eventSink != nil) {
-        _eventSink(@{@"event" : @"bufferingStart"});
-      }
-      NSLog(@"XXXXX observeValueForKeyPath playbackLikelyToKeepUp NO");
-    }
-    
-  } else if (context == rateContext) {
-    // Important: Make sure to cast the object to AVPlayer when observing the rate property,
-    // as it is not available in AVPlayerItem.
-    AVPlayer *player = (AVPlayer *)object;
-    if (_eventSink != nil) {
-      _eventSink(
-          @{@"event" : @"isPlayingStateUpdate", @"isPlaying" : player.rate > 0 ? @YES : @NO});
-    }
-      NSLog(@"XXXXX observeValueForKeyPath rate %f", player.rate);
-  } else if (context == isPlaybackBufferEmptyContext) {
-    AVPlayer *player = (AVPlayer *)object;
-    if (_eventSink != nil) {
-      _eventSink(@{@"event" : @"isPlaybackBufferEmpty"});
-    }
-    NSLog(@"XXXXX observeValueForKeyPath isPlaybackBufferEmpty");
-  } else if (context == isPlaybackBufferFullContext) {
-    AVPlayer *player = (AVPlayer *)object;
-    if (_eventSink != nil) {
-      _eventSink(@{@"event" : @"isPlaybackBufferFull"});
-    }
-    NSLog(@"XXXXX observeValueForKeyPath isPlaybackBufferFull");
-  }
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSLog(@"XXXXX observeValueForKeyPath");
+        NSLog(@"XXXXX %@", [NSThread currentThread]);
+        if (context == timeRangeContext) {
+            NSArray *loadedTimeRanges = [object loadedTimeRanges];
+            NSTimeInterval totalLoadedSeconds = 0.0;
+            CMTimeRange timeRange = [loadedTimeRanges.firstObject CMTimeRangeValue];
+            totalLoadedSeconds = CMTimeGetSeconds(timeRange.start) + CMTimeGetSeconds(timeRange.duration);
+            self.totalBufferedTime = totalLoadedSeconds;
+            Float64 tduration = 0;
+            if (_eventSink != nil) {
+                NSMutableArray<NSArray<NSNumber *> *> *values = [[NSMutableArray alloc] init];
+                for (NSValue *rangeValue in [object loadedTimeRanges]) {
+                    CMTimeRange range = [rangeValue CMTimeRangeValue];
+                    int64_t start = FVPCMTimeToMillis(range.start);
+                    [values addObject:@[ @(start), @(start + FVPCMTimeToMillis(range.duration)) ]];
+                }
+                _eventSink(@{@"event" : @"bufferingUpdate", @"values" : values});
+            }
+        } else if (context == statusContext) {
+            AVPlayerItem *item = (AVPlayerItem *)object;
+            switch (item.status) {
+                case AVPlayerItemStatusFailed:
+                    [self sendFailedToLoadVideoEvent];
+                    NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusFailed");
+                    break;
+                case AVPlayerItemStatusUnknown:
+                    NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusUnknown");
+                    break;
+                case AVPlayerItemStatusReadyToPlay:
+                    NSLog(@"XXXXX observeValueForKeyPath AVPlayerItemStatusReadyToPlay");
+                    [item addOutput:_videoOutput];
+                    [self setupEventSinkIfReadyToPlay];
+                    [self updatePlayingState];
+                    break;
+            }
+        } else if (context == presentationSizeContext || context == durationContext) {
+            AVPlayerItem *item = (AVPlayerItem *)object;
+            if (item.status == AVPlayerItemStatusReadyToPlay) {
+                // Due to an apparent bug, when the player item is ready, it still may not have determined
+                // its presentation size or duration. When these properties are finally set, re-check if
+                // all required properties and instantiate the event sink if it is not already set up.
+                [self setupEventSinkIfReadyToPlay];
+                [self updatePlayingState];
+            }
+        } else if (context == playbackLikelyToKeepUpContext) {
+            [self updatePlayingState];
+            if ([[_player currentItem] isPlaybackLikelyToKeepUp]) {
+                if (_eventSink != nil) {
+                    _eventSink(@{@"event" : @"bufferingEnd"});
+                }
+                NSLog(@"XXXXX observeValueForKeyPath playbackLikelyToKeepUp YES");
+            } else {
+                if (_eventSink != nil) {
+                    _eventSink(@{@"event" : @"bufferingStart"});
+                }
+                NSLog(@"XXXXX observeValueForKeyPath playbackLikelyToKeepUp NO");
+            }
+            
+        } else if (context == rateContext) {
+            // Important: Make sure to cast the object to AVPlayer when observing the rate property,
+            // as it is not available in AVPlayerItem.
+            AVPlayer *player = (AVPlayer *)object;
+            if (_eventSink != nil) {
+                _eventSink(
+                           @{@"event" : @"isPlayingStateUpdate", @"isPlaying" : player.rate > 0 ? @YES : @NO});
+            }
+            NSLog(@"XXXXX observeValueForKeyPath rate %f", player.rate);
+        } else if (context == isPlaybackBufferEmptyContext) {
+            AVPlayer *player = (AVPlayer *)object;
+            if (_eventSink != nil) {
+                _eventSink(@{@"event" : @"isPlaybackBufferEmpty"});
+            }
+            NSLog(@"XXXXX observeValueForKeyPath isPlaybackBufferEmpty");
+        } else if (context == isPlaybackBufferFullContext) {
+            AVPlayer *player = (AVPlayer *)object;
+            if (_eventSink != nil) {
+                _eventSink(@{@"event" : @"isPlaybackBufferFull"});
+            }
+            NSLog(@"XXXXX observeValueForKeyPath isPlaybackBufferFull");
+        }
+    });
 }
 
 - (void)flushBuffer {
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSLog(@"XXXXX flushBuffer");
+        NSLog(@"XXXXX %@", [NSThread currentThread]);
         NSLog(@"XXXXX flushBuffer player status %d", _player.status);
         NSLog(@"XXXXX flushBuffer player item status %d", _player.currentItem.status);
         NSLog(@"XXXXX flushBuffer player rate %f", _player.rate);
@@ -631,18 +654,23 @@ didCompleteWithError:(NSError *)error {
             NSLog(@"XXXXX flushBuffer start video");
             _player.rate = 1.0;            
         }
-        if (self.dataTask.state == NSURLSessionTaskStateCompleted) {
-          NSLog(@"XXXXX flushBuffer dataTask completed recieved %lld bytes", _dataTask.countOfBytesReceived);
+        if (self.dataTaskCompleted == YES) {
+          NSLog(@"XXXXX flushBuffer dataTask completed recieved %lld bytes", _dataTaskBytesReceived);
+        // if (self.dataTask.state == NSURLSessionTaskStateCompleted) {
+          // NSLog(@"XXXXX flushBuffer dataTask completed recieved %lld bytes", _dataTask.countOfBytesReceived);
           if (remainingBuffer < _maxBuffer) {
             NSLog(@"XXXXX flushBuffer remainingBuffer < maxBuffer");
             NSLog(@"XXXXX flushBuffer processPendingRequests");
             [self processPendingRequests];          
           }  
         }
+  });
 }
 
 - (void)processPendingRequests {
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
     NSLog(@"XXXXX processPendingRequests");
+    NSLog(@"XXXXX %@", [NSThread currentThread]);
     NSMutableArray *requestsCompleted = [NSMutableArray array];
     for (AVAssetResourceLoadingRequest *loadingRequest in self.pendingRequests) {
         if (loadingRequest.dataRequest.requestedLength == 2) {
@@ -665,6 +693,7 @@ didCompleteWithError:(NSError *)error {
     
     NSLog(@"XXXXX processPendingRequests remove completed requests from pending requests array");
     [self.pendingRequests removeObjectsInArray:requestsCompleted];
+  });
 }
 
 - (void)updatePlayingState {
