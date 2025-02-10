@@ -98,7 +98,7 @@
 @property NSMutableData *videoData;
 @property NSHTTPURLResponse *responset;
 @property NSURLConnection *connection;
-
+@property BOOL processingPendingRequests;
 @property NSURLSession *session;
 // @property NSURLSessionDataTask *dataTask;
 @property BOOL dataTaskCompleted;
@@ -325,8 +325,9 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
   }
   AVURLAsset *urlAsset = [AVURLAsset URLAssetWithURL:videoURL options:options];
   _totalBufferedTime = 0;
-  _minBuffer = 10;
-  _maxBuffer = 60;
+  _minBuffer = 2;
+  _maxBuffer = 10;
+    _processingPendingRequests = NO;
     _videoData = [NSMutableData data];
 //  _videoData = [[NSMutableData alloc] initWithCapacity:1000000];
   _pendingRequests = [NSMutableArray array];
@@ -433,7 +434,7 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
     NSLog(@"XXXXX Custom Resource Loader");
-    NSLog(@"XXXXX %@", [NSThread currentThread]);
+    NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource %@", [NSThread currentThread]);
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource");
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new loading request");
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:_realURL];
@@ -450,9 +451,10 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
     // self.dataTask = [self.session dataTaskWithRequest:request];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource resume task");
     // [self.dataTask resume];
+      _dataTaskCompleted = NO;
+      _dataTaskBytesReceived = 0;
     [[self.session dataTaskWithRequest:request] resume];
-    _dataTaskCompleted = NO;
-    _dataTaskBytesReceived = 0;
+
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource add new loading request to pending requests");
     [self.pendingRequests addObject:loadingRequest];
   });
@@ -465,8 +467,8 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 didReceiveResponse:(NSURLResponse *)response
  completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
     NSLog(@"XXXXX didReceiveResponse");
-    // NSLog(@"XXXXX %@", [NSThread currentThread]);
-    NSLog(@"XXXXX %@", response);
+    NSLog(@"XXXXX didReceiveResponse %@", [NSThread currentThread]);
+    NSLog(@"XXXXX didReceiveResponse response %@", response);
     NSLog(@"XXXXX init videoData");
     self.responset = (NSHTTPURLResponse *) response;
     _videoData = [NSMutableData data];
@@ -479,7 +481,7 @@ didReceiveResponse:(NSURLResponse *)response
     didReceiveData:(NSData *)data {
 //      [NSThread sleepForTimeInterval:2.0f]; // simulate slow download bandwidth
     NSLog(@"XXXXX didReceiveData data.length %lu, total %lu", data.length, _videoData.length + data.length);
-    NSLog(@"XXXXX %@", [NSThread currentThread]);
+    NSLog(@"XXXXX didReceiveData %@", [NSThread currentThread]);
     // NSLog(@"XXXXX didReceiveData append data to videoData");
     [self.videoData appendData:data];
 }
@@ -488,7 +490,7 @@ didReceiveResponse:(NSURLResponse *)response
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
     NSLog(@"XXXXX didCompleteWithError");
-    NSLog(@"XXXXX %@", [NSThread currentThread]);
+    NSLog(@"XXXXX didCompleteWithError %@", [NSThread currentThread]);
     if (error) {
         // Error occurred
         NSLog(@"XXXXXTask completed with error: %@", error.localizedDescription);
@@ -506,10 +508,10 @@ didCompleteWithError:(NSError *)error {
        } else {
            // No error, task completed successfully
            NSLog(@"XXXXX Task completed successfully.");
-           NSLog(@"XXXXX Calling flushBuffer");
+//           NSLog(@"XXXXX Calling flushBuffer");
            _dataTaskCompleted = YES;
            _dataTaskBytesReceived = task.countOfBytesReceived;
-           [self flushBuffer];
+//           [self flushBuffer];
        }
 }
 
@@ -518,7 +520,7 @@ didCompleteWithError:(NSError *)error {
                task:(NSURLSessionTask *)task
  didFailWithError:(NSError *)error {
     NSLog(@"XXXXX didFailWithError");
-    NSLog(@"XXXXX %@", [NSThread currentThread]);
+    NSLog(@"XXXXX didFailWithError %@", [NSThread currentThread]);
     NSLog(@"XXXXX Data task failed with error: %@", error.localizedDescription);
     
     // Handle specific errors
@@ -538,7 +540,7 @@ didCompleteWithError:(NSError *)error {
 
 - (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
     NSLog(@"XXXXX didCancelLoadingRequest");
-    NSLog(@"XXXXX %@", [NSThread currentThread]);
+    NSLog(@"XXXXX didCancelLoadingRequest %@", [NSThread currentThread]);
     NSLog(@"XXXXX didCancelLoadingRequest remove loading request from pending requests");
     [self.pendingRequests removeObject:loadingRequest];
 }
@@ -550,7 +552,7 @@ didCompleteWithError:(NSError *)error {
                        context:(void *)context {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"XXXXX observeValueForKeyPath");
-        NSLog(@"XXXXX %@", [NSThread currentThread]);
+        NSLog(@"XXXXX observeValueForKeyPath %@", [NSThread currentThread]);
         if (context == timeRangeContext) {
             NSArray *loadedTimeRanges = [object loadedTimeRanges];
             NSTimeInterval totalLoadedSeconds = 0.0;
@@ -635,7 +637,7 @@ didCompleteWithError:(NSError *)error {
 - (void)flushBuffer {
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"XXXXX flushBuffer");
-        NSLog(@"XXXXX %@", [NSThread currentThread]);
+        NSLog(@"XXXXX flushBuffer %@", [NSThread currentThread]);
         NSLog(@"XXXXX flushBuffer player status %d", _player.status);
         NSLog(@"XXXXX flushBuffer player item status %d", _player.currentItem.status);
         NSLog(@"XXXXX flushBuffer player rate %f", _player.rate);
@@ -646,14 +648,14 @@ didCompleteWithError:(NSError *)error {
         Float64 remainingBuffer = _totalBufferedTime - CMTimeGetSeconds(_player.currentTime);
         NSLog(@"XXXXX flushBuffer remainingBuffer: %.2f seconds", remainingBuffer);
         if (remainingBuffer <= _minBuffer && _player.rate == 1.0 ) {
-            NSLog(@"XXXXX flushBuffer remainingBuffer =< minBuffer");
+            NSLog(@"XXXXX flushBuffer remainingBuffer <= minBuffer");
             NSLog(@"XXXXX flushBuffer pause video");
             _player.rate = 0.0;            
-        } else if (remainingBuffer > _minBuffer && _player.rate == 0.0 ) {
-            NSLog(@"XXXXX flushBuffer remainingBuffer > minBuffer");
-            NSLog(@"XXXXX flushBuffer start video");
-            _player.rate = 1.0;            
-        }
+        } //else if (remainingBuffer > _minBuffer && _player.rate == 0.0 ) {
+//            NSLog(@"XXXXX flushBuffer remainingBuffer > minBuffer");
+//            NSLog(@"XXXXX flushBuffer start video");
+//            _player.rate = 1.0;            
+//        }
         if (self.dataTaskCompleted == YES) {
           NSLog(@"XXXXX flushBuffer dataTask completed recieved %lld bytes", _dataTaskBytesReceived);
         // if (self.dataTask.state == NSURLSessionTaskStateCompleted) {
@@ -668,9 +670,12 @@ didCompleteWithError:(NSError *)error {
 }
 
 - (void)processPendingRequests {
-  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+//  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
     NSLog(@"XXXXX processPendingRequests");
-    NSLog(@"XXXXX %@", [NSThread currentThread]);
+    NSLog(@"XXXXX processPendingRequests %@", [NSThread currentThread]);
+    NSLog(@"XXXXX processPendingRequests pendingRequests.count %lu", (unsigned long)_pendingRequests.count);
+    if (_processingPendingRequests == YES) return;
+    _processingPendingRequests = YES;
     NSMutableArray *requestsCompleted = [NSMutableArray array];
     for (AVAssetResourceLoadingRequest *loadingRequest in self.pendingRequests) {
         if (loadingRequest.dataRequest.requestedLength == 2) {
@@ -693,7 +698,8 @@ didCompleteWithError:(NSError *)error {
     
     NSLog(@"XXXXX processPendingRequests remove completed requests from pending requests array");
     [self.pendingRequests removeObjectsInArray:requestsCompleted];
-  });
+    _processingPendingRequests = NO;
+//  });
 }
 
 - (void)updatePlayingState {
