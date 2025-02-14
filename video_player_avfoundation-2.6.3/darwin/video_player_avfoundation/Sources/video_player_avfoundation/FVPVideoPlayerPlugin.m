@@ -424,10 +424,11 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
         NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource");
         NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new loading request");
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:_realURL];
-        NSInteger loadStart = loadingRequest.dataRequest.requestedOffset;
-        NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource requestedOffset %lu", loadStart);
-        NSInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : loadStart + 1000000;
-        [request setValue:[NSString stringWithFormat:@"bytes=%ld-%ld", (long)loadStart, (long)loadEnd] forHTTPHeaderField:@"Range"];
+        NSUInteger loadStart = loadingRequest.dataRequest.requestedOffset;
+        NSUInteger loadLength = loadingRequest.dataRequest.requestedLength;
+        NSUInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : (loadStart + (loadLength < 1000001 ? loadLength : 1000000));
+        NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource requestedOffset %lu requestedLength %lu loadEnd %lu", loadStart, loadLength, loadEnd);
+        [request setValue:[NSString stringWithFormat:@"bytes=%lu-%lu", loadStart, loadEnd] forHTTPHeaderField:@"Range"];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new data task for new session");
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new data task for new session");
     // self.dataTask = [self.session dataTaskWithRequest:request];
@@ -535,10 +536,13 @@ didCompleteWithError:(NSError *)error {
 
 - (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader
         didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest {
-    NSLog(@"XXXXX didCancelLoadingRequest");
-    NSLog(@"XXXXX didCancelLoadingRequest %@", [NSThread currentThread]);
-    NSLog(@"XXXXX didCancelLoadingRequest remove loading request from pending requests");
-    [self.pendingRequests removeObject:loadingRequest];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        
+        NSLog(@"XXXXX didCancelLoadingRequest");
+        NSLog(@"XXXXX didCancelLoadingRequest %@", [NSThread currentThread]);
+        NSLog(@"XXXXX didCancelLoadingRequest remove loading request from pending requests");
+        [self.pendingRequests removeObject:loadingRequest];
+    });
 }
 
 

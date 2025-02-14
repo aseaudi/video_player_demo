@@ -212,6 +212,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       bufferedColor: const Color.fromARGB(
                                           255, 255, 255, 255),
                                       backgroundColor: Colors.blueGrey),
+                                      padding: EdgeInsets.fromLTRB(0,0,0,50),
                                 ),
                               ]))
                       : const Center(
