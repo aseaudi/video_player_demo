@@ -420,13 +420,14 @@ NS_INLINE CGFloat radiansToDegrees(CGFloat radians) {
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"XXXXX Custom Resource Loader");
+        NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource loadingRequest %lu", loadingRequest.hash);
         NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource %@", [NSThread currentThread]);
         NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource");
         NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new loading request");
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:_realURL];
         NSUInteger loadStart = loadingRequest.dataRequest.requestedOffset;
         NSUInteger loadLength = loadingRequest.dataRequest.requestedLength;
-        NSUInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : (loadStart + (loadLength < 1000001 ? loadLength : 1000000));
+        NSUInteger loadEnd = loadingRequest.dataRequest.requestedLength == 2 ? 1 : (loadStart - 1 + (loadLength < 1000001 ? loadLength : 1000000));
         NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource requestedOffset %lu requestedLength %lu loadEnd %lu", loadStart, loadLength, loadEnd);
         [request setValue:[NSString stringWithFormat:@"bytes=%lu-%lu", loadStart, loadEnd] forHTTPHeaderField:@"Range"];
     NSLog(@"XXXXX shouldWaitForLoadingOfRequestedResource new data task for new session");
@@ -680,6 +681,7 @@ didCompleteWithError:(NSError *)error {
     NSMutableArray *requestsCompleted = [NSMutableArray array];
     for (AVAssetResourceLoadingRequest *loadingRequest in self.pendingRequests) {
         NSLog(@"XXXXX processPendingRequests pendingRequests.count %lu", (unsigned long)_pendingRequests.count);
+        NSLog(@"XXXXX processPendingRequests loadingRequest %lu", loadingRequest.hash);
         if (loadingRequest.dataRequest.requestedLength == 2) {
             NSLog(@"XXXXX processPendingRequests loadingRequest.dataRequest.requestedLength == 2");
             self.contentLength = [[[self.responset valueForHTTPHeaderField:@"Content-Range"] componentsSeparatedByString:@"/"][1] integerValue];
